@@ -2,7 +2,7 @@
     "plugins": ["mocha"],
     "extends": ["plugin:mocha/recommended"],
     "rules": {
-        "func-names": ["warn", "never"],
+        "func-names": ["warn", "never"]
     },
     "env": {
         "mocha": true

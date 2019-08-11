@@ -25,6 +25,12 @@ class AbstractHandler {
             .forEach(rpcCallName => this.socket.on(rpcCallName, this.handleRpcCall(this[rpcCallName])))
     }
 
+    validateAuthorization() {
+        if (!this.socket.ctx.user) {
+            throw this.makeRpcError({ code: 'UNAUTHORIZED', message: 'Authorization required' })
+        }
+    }
+
     makeRpcError(err) {
         if (err.code && err.message) {
             return serializeError(new RcpError(err))

@@ -5,16 +5,20 @@
     "main": "index.js",
     "scripts": {
         "start": "node index.js",
-        "test": "mocha --opts tests/mocha.opts"
+        "test": "mocha --opts tests/mocha.opts",
+        "prettify": "prettier --write --check '**/*(*.js|*.json)'"
     },
     "author": "Claud D. Park <posquit0.bj@gmail.com> (http://www.posquit0.com)",
     "license": "MIT",
     "dependencies": {
         "jsonwebtoken": "^8.5.1",
+        "knex": "^0.19.1",
         "lodash": "^4.17.15",
+        "mysql": "^2.17.1",
         "rpc-websockets": "^4.6.1",
         "serialize-error": "^4.1.0",
-        "socket.io": "^2.2.0"
+        "socket.io": "^2.2.0",
+        "uuid": "^3.3.2"
     },
     "devDependencies": {
         "@types/chai": "^4.2.0",
@@ -30,6 +34,7 @@
         "eslint-plugin-promise": "^4.2.1",
         "eslint-plugin-standard": "^4.0.0",
         "mocha": "^5.2.0",
+        "prettier": "^1.18.2",
         "socket.io-client": "^2.2.0"
     }
 }

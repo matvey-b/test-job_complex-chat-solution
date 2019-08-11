@@ -20,4 +20,9 @@ module.exports = {
         )
             // note: добавляем оставшееся время до устаревания токена, нужно для установки таймеров
             .then(res => Object.assign(res, { timeToExpiration: res.exp * 1000 - Date.now() })),
+
+    decode: token => {
+        const res = jwt.decode(token)
+        return Object.assign(res, { timeToExpiration: res.exp * 1000 - Date.now() })
+    },
 }
