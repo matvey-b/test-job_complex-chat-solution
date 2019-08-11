@@ -1,0 +1,11 @@
+{
+    "extends": ["standard", "prettier", "prettier/standard"],
+    "plugins": ["prettier", "standard"],
+    "parserOptions": {
+        "ecmaVersion": 10
+    },
+    "env": {
+        "node": true,
+        "commonjs": true
+    }
+}

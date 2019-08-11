@@ -1,0 +1,35 @@
+{
+    "name": "chat-on-ws",
+    "version": "0.0.1",
+    "description": "'Simple chat implementation on websocket protocol'",
+    "main": "index.js",
+    "scripts": {
+        "start": "node index.js",
+        "test": "mocha --opts tests/mocha.opts"
+    },
+    "author": "Claud D. Park <posquit0.bj@gmail.com> (http://www.posquit0.com)",
+    "license": "MIT",
+    "dependencies": {
+        "jsonwebtoken": "^8.5.1",
+        "lodash": "^4.17.15",
+        "rpc-websockets": "^4.6.1",
+        "serialize-error": "^4.1.0",
+        "socket.io": "^2.2.0"
+    },
+    "devDependencies": {
+        "@types/chai": "^4.2.0",
+        "chai": "^4.2.0",
+        "chai-as-promised": "^7.1.1",
+        "eslint": "^6.1.0",
+        "eslint-config-prettier": "^6.0.0",
+        "eslint-config-standard": "^13.0.1",
+        "eslint-plugin-import": "^2.18.2",
+        "eslint-plugin-mocha": "^6.0.0",
+        "eslint-plugin-node": "^9.1.0",
+        "eslint-plugin-prettier": "^3.1.0",
+        "eslint-plugin-promise": "^4.2.1",
+        "eslint-plugin-standard": "^4.0.0",
+        "mocha": "^5.2.0",
+        "socket.io-client": "^2.2.0"
+    }
+}

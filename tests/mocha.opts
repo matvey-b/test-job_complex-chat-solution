@@ -1,0 +1,7 @@
+--ui tdd
+--timeout 999999
+--colors
+--sort
+--exit
+tests/bootstrap.js
+tests/**/*.tests.js
