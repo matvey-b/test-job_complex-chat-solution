@@ -1,6 +1,7 @@
 // note: подключаю knex только для того, чтобы работал автокомплит
 // eslint-disable-next-line no-unused-vars
 const knex = require('../utils/knex')
+const uuid = require('uuid/v4')
 
 /**
  * @param {knex} knex
@@ -13,7 +14,14 @@ exports.up = async knex => {
             .unique()
             .notNullable()
         table.string('password').notNullable()
-        table.timestamps()
+        table.dateTime('createdAt').notNullable()
+    })
+
+    await knex('users').insert({
+        id: uuid(),
+        login: 'admin',
+        password: 'asldfkjj',
+        createdAt: new Date(),
     })
 }
 

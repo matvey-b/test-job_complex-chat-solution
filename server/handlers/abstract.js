@@ -4,12 +4,17 @@ const serializeError = require('serialize-error')
 class AbstractHandler {
     constructor(socket) {
         this.socket = socket
-        if (!this.socket.ctx) {
-            this.socket.ctx = {}
+        if (!this.ctx) {
+            this.socket.ctx = this.ctx = new SocketContext(socket)
         }
         this.assignEventListeners()
         this.assignRpcCalls()
     }
+
+    // fixme: реализовать централизованное инстанцирование всех менеджеров и сделать, чтобы на них вызывался метод restoreState()
+    // в нем сокет должен был подключен ко всем нужным комнатам и должен обзавестить актуальным контекстом, если требуется.
+    // эта функция асинхронная, поэтому не получится вызвать её при инстанцировании обработчиков
+    async restoreState() {}
 
     assignEventListeners() {
         return this
@@ -25,10 +30,22 @@ class AbstractHandler {
             .forEach(rpcCallName => this.socket.on(rpcCallName, this.handleRpcCall(this[rpcCallName])))
     }
 
+    getConnectedRoomsList() {
+        return Object.keys(this.socket.rooms)
+    }
+
     validateAuthorization() {
-        if (!this.socket.ctx.user) {
+        if (!this.ctx.isAuthenticated) {
             throw this.makeRpcError({ code: 'UNAUTHORIZED', message: 'Authorization required' })
         }
+    }
+
+    joinToRoom(roomName) {
+        return new Promise((resolve, reject) => this.socket.join(roomName, err => (err ? reject(err) : resolve())))
+    }
+
+    leaveRoom(roomName) {
+        return new Promise((resolve, reject) => this.socket.leave(roomName, err => (err ? reject(err) : resolve())))
     }
 
     makeRpcError(err) {
@@ -51,6 +68,21 @@ class AbstractHandler {
                 return fn(this.makeRpcError(error))
             }
         }
+    }
+}
+
+class SocketContext {
+    constructor(socket) {
+        this.socket = socket
+        this.user = null
+    }
+
+    get isAuthenticated() {
+        return Boolean(this.user)
+    }
+
+    get publicUserData() {
+        return _.pick(this.user, 'id', 'login')
     }
 }
 
