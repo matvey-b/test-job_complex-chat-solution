@@ -1,6 +1,6 @@
 const _ = require('lodash')
-const knex = require('knex')
-const uuid = require('uuid/v5')
+const knex = require('../utils/knex')
+const uuid = require('uuid/v4')
 const crypto = require('crypto')
 const jwt = require('../utils/jwt')
 const AbstractHandler = require('./abstract')
@@ -157,18 +157,16 @@ class AuthManager extends AbstractHandler {
         if (!token) {
             throw this.makeRpcError({ code: 'BAD_REQUEST', message: 'Token must be provided' })
         }
-        if (this.socket.ctx.user) {
-            return true
-        }
+        if (!this.socket.ctx.user) {
+            const decodedToken = await jwt.verify(token).catch(() => null)
+            // fixme: нужно разделить ошибки JWT_EXPIRED и INVALID_TOKEN_SIGN
+            if (!decodedToken) {
+                throw this.makeRpcError({ code: 'JWT_EXPIRED', message: 'Invalid token provided' })
+            }
 
-        const decodedToken = await jwt.verify(token).catch(() => null)
-        // fixme: нужно разделить ошибки JWT_EXPIRED и INVALID_TOKEN_SIGN
-        if (!decodedToken) {
-            throw this.makeRpcError({ code: 'JWT_EXPIRED', message: 'Invalid token provided' })
+            await this.assignUserToSocket(decodedToken.userId)
+            this.scheduleNotificationAboutTokenExpiration(decodedToken)
         }
-
-        await this.assignUserToSocket(decodedToken.userId)
-        this.scheduleNotificationAboutTokenExpiration(decodedToken)
 
         return this.socket.ctx.user
     }
