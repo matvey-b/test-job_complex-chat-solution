@@ -42,14 +42,14 @@ class ChatsManager extends AbstractHandler {
     async joinToChat(chatId) {
         const roomName = this.makeChatRoomName(chatId)
         await this.joinToRoom(roomName).then(() => (this.currentChatId = chatId))
-        this.socket.to(roomName).broadcast.emit('UserWasJoinedToChat', this.ctx.publicUserData)
+        this.socket.to(roomName).broadcast.emit('UserWasJoinedToChat', this.socket.ctx.publicUserData)
     }
 
     async leaveChat(chatId) {
         if (chatId) {
             const roomName = this.makeChatRoomName(chatId)
             await this.leaveRoom(roomName)
-            this.socket.to(roomName).broadcast.emit('UserWasLeftTheChat', this.ctx.publicUserData)
+            this.socket.to(roomName).broadcast.emit('UserWasLeftTheChat', this.socket.ctx.publicUserData)
         }
     }
 

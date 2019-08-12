@@ -4,9 +4,6 @@ const serializeError = require('serialize-error')
 class AbstractHandler {
     constructor(socket) {
         this.socket = socket
-        if (!this.ctx) {
-            this.socket.ctx = this.ctx = new SocketContext(socket)
-        }
         this.assignEventListeners()
         this.assignRpcCalls()
     }
@@ -35,7 +32,7 @@ class AbstractHandler {
     }
 
     validateAuthorization() {
-        if (!this.ctx.isAuthenticated) {
+        if (!this.socket.ctx.isAuthenticated) {
             throw this.makeRpcError({ code: 'UNAUTHORIZED', message: 'Authorization required' })
         }
     }
@@ -68,21 +65,6 @@ class AbstractHandler {
                 return fn(this.makeRpcError(error))
             }
         }
-    }
-}
-
-class SocketContext {
-    constructor(socket) {
-        this.socket = socket
-        this.user = null
-    }
-
-    get isAuthenticated() {
-        return Boolean(this.user)
-    }
-
-    get publicUserData() {
-        return _.pick(this.user, 'id', 'login')
     }
 }
 

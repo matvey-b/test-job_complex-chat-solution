@@ -1,8 +1,8 @@
 const _ = require('lodash')
-const knex = require('../utils/knex')
 const uuid = require('uuid/v4')
 const crypto = require('crypto')
 const jwt = require('../utils/jwt')
+const knex = require('../utils/knex')
 const AbstractHandler = require('./abstract')
 
 const TIME_FOR_AUTH = 60 * 1000 * 5 // 5 min на вызовы signUp или signIn
@@ -31,6 +31,9 @@ const attach = socket => {
 class AuthManager extends AbstractHandler {
     constructor(socket) {
         super(socket)
+        if (!this.socket.ctx) {
+            this.socket.ctx = new SocketContext(socket)
+        }
         this.setDestroyNotAuthorizedSocketTimeout(TIME_FOR_AUTH)
     }
 
@@ -57,10 +60,14 @@ class AuthManager extends AbstractHandler {
     async assignUserToSocket(user) {
         if (_.get(this.socket.ctx, 'user.id') !== (user.id || user)) {
             if (_.isObject(user)) {
-                this.socket.ctx.user = _.pick(user, 'id', 'login')
+                this.socket.ctx.setUser(user)
             } else {
-                this.socket.ctx.user = await knex('users').first('id', 'login')
+                const res = await knex('users')
+                    .first('id', 'login')
+                    .where({ id: user })
+                this.socket.ctx.setUser(res)
             }
+            console.log(`${this.socket.ctx.user.login} was authenticated`)
         }
         return this.socket.ctx.user
     }
@@ -107,7 +114,7 @@ class AuthManager extends AbstractHandler {
             })
         }
         const user = { id: uuid(), login }
-        await knex('users').insert({ ...user, password: hashPassword(password) })
+        await knex('users').insert({ ...user, password: hashPassword(password), createdAt: new Date() })
         const token = await jwt.sign(user)
         await this.assignUserToSocket(user)
         this.scheduleNotificationAboutTokenExpiration(token)
@@ -169,6 +176,25 @@ class AuthManager extends AbstractHandler {
         }
 
         return this.socket.ctx.user
+    }
+}
+
+class SocketContext {
+    constructor(socket) {
+        console.log('constr')
+        this.user = null
+    }
+
+    setUser(user) {
+        this.user = _.pick(user, 'id', 'login')
+    }
+
+    get isAuthenticated() {
+        return Boolean(this.user)
+    }
+
+    get publicUserData() {
+        return _.pick(this.user, 'id', 'login')
     }
 }
 
