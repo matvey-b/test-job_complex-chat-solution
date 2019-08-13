@@ -31,6 +31,25 @@ class ChatsManager extends AbstractHandler {
         return knex('chats').orderBy('name', 'asc')
     }
 
+    async rpcGetChatMessages({ filter = {}, limit = 20 } = {}) {
+        this.validateAuthorization()
+
+        if (!filter.chatId) {
+            throw this.makeRpcError({ code: 'BAD_REQUEST', message: 'Chat id must be provided' })
+        }
+
+        const query = knex('chat_messages')
+            .where({ chatId: filter.chatId })
+            .orderBy('id', 'desc')
+            .limit(limit)
+
+        if (filter.maxId) {
+            query.where('id', '<=', filter.maxId)
+        }
+
+        return query
+    }
+
     makeChatRoomName(id) {
         return `chat:${id}`
     }

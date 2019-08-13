@@ -4,3 +4,4 @@ chai.use(chaiAsPromised)
 
 module.exports.chai = chai
 module.exports.expect = chai.expect
+module.exports.chance = require('./chance')

@@ -24,7 +24,7 @@ class AbstractHandler {
     assignRpcCalls() {
         return Object.getOwnPropertyNames(Object.getPrototypeOf(this))
             .filter(key => key.slice(0, 3) === 'rpc')
-            .forEach(rpcCallName => this.socket.on(rpcCallName, this.handleRpcCall(this[rpcCallName])))
+            .forEach(rpcCallName => this.socket.on(rpcCallName, this.handleRpcCall(rpcCallName, this[rpcCallName])))
     }
 
     getConnectedRoomsList() {
@@ -52,17 +52,30 @@ class AbstractHandler {
         return serializeError(new RcpError({ reason: err }))
     }
 
-    handleRpcCall(handler) {
+    handleRpcCall(method, handler) {
         return async (...args) => {
             const fn = args.pop()
+            console.log(String().padEnd(10, '='))
+            console.log(
+                `Start handling RPC call "${method}" on ${_.get(
+                    this.socket,
+                    'ctx.user.login',
+                    'UNAUTHENTICATED',
+                )} socket`,
+            )
             if (!_.isFunction(fn)) {
                 throw new Error(`REMOTE FUNCTION CALLED WITHOUT CALLBACK FUNCTION`)
             }
+            console.log(`Input: `, ...args)
             try {
                 const res = await handler.call(this, ...args)
+                console.log(`Success: `, res)
                 return fn(res)
             } catch (error) {
+                console.log(`Error: `, error)
                 return fn(this.makeRpcError(error))
+            } finally {
+                console.log(String().padEnd(10, '='))
             }
         }
     }

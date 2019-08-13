@@ -22,8 +22,10 @@
     },
     "devDependencies": {
         "@types/chai": "^4.2.0",
+        "@types/chance": "^1.0.5",
         "chai": "^4.2.0",
         "chai-as-promised": "^7.1.1",
+        "chance": "^1.0.18",
         "eslint": "^6.1.0",
         "eslint-config-prettier": "^6.0.0",
         "eslint-config-standard": "^13.0.1",
