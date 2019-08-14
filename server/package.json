@@ -11,6 +11,9 @@
     "author": "Claud D. Park <posquit0.bj@gmail.com> (http://www.posquit0.com)",
     "license": "MIT",
     "dependencies": {
+        "chalk": "^2.4.2",
+        "ioredis": "^4.14.0",
+        "joi": "^14.3.1",
         "jsonwebtoken": "^8.5.1",
         "knex": "^0.19.1",
         "lodash": "^4.17.15",
@@ -22,7 +25,10 @@
     },
     "devDependencies": {
         "@types/chai": "^4.2.0",
+        "@types/chalk": "^2.2.0",
         "@types/chance": "^1.0.5",
+        "@types/ioredis": "^4.0.14",
+        "@types/joi": "^14.3.3",
         "chai": "^4.2.0",
         "chai-as-promised": "^7.1.1",
         "chance": "^1.0.18",

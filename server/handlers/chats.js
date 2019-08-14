@@ -1,12 +1,11 @@
 const knex = require('../utils/knex')
-const AbstractHandler = require('./abstract')
-
+const BaseHandler = require('./base')
 const attach = socket => {
-    socket.chatsManager = new ChatsManager(socket)
+    socket.chatsHandlers = new ChatsHandlers(socket)
 }
 
 /* 
-Участие в чате выражается только в том, что клиент в данный момент слушает на нем "socket.io сообщения" или нет.
+Участие(participation) в чате выражается только в том, что клиент в данный момент слушает на нем "socket.io сообщения" или нет, т.е. есть ли коннекшн и связь с chat room.
 
 Каждый аутентифицированный клиент может:
 - Получить список всех чатов: rpcGetChats
@@ -16,7 +15,7 @@ const attach = socket => {
 при этом он автоматически отписывается от предыдущего чата: rpcSubscribeToChat
 */
 
-class ChatsManager extends AbstractHandler {
+class ChatsHandlers extends BaseHandler {
     constructor(...args) {
         super(...args)
         this.currentChatId = null
@@ -26,17 +25,17 @@ class ChatsManager extends AbstractHandler {
         this.socket.on('disconnect', async () => this.leaveChat(this.currentChatId))
     }
 
+    async rpcGetOnlineUsersOfChat(chatId) {
+        const clients = await this.server.in(this.makeChatRoomName(chatId)).clients()
+    }
+
     async rpcGetChats() {
         this.validateAuthorization()
         return knex('chats').orderBy('name', 'asc')
     }
 
-    async rpcGetChatMessages({ filter = {}, limit = 20 } = {}) {
+    async rpcGetChatMessages({ filter, limit }) {
         this.validateAuthorization()
-
-        if (!filter.chatId) {
-            throw this.makeRpcError({ code: 'BAD_REQUEST', message: 'Chat id must be provided' })
-        }
 
         const query = knex('chat_messages')
             .where({ chatId: filter.chatId })
@@ -74,9 +73,6 @@ class ChatsManager extends AbstractHandler {
 
     async rpcSubscribeToChat(chatId) {
         this.validateAuthorization()
-        if (!chatId) {
-            throw this.makeRpcError({ code: 'BAD_REQUEST', message: 'Chat id must be provided' })
-        }
         if (chatId !== this.currentChatId) {
             await Promise.all([this.joinToChat(chatId), this.leaveChat(this.currentChatId)])
         }

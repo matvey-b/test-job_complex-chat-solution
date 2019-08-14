@@ -6,6 +6,7 @@
 module.exports = {
     httpPort: 8080,
     nodeEnv: 'dev', // для развертки в проде использовать значение "production"
+    maintainForgottenSessions: true, // сделать текущую ноду, ответственной за чистку забытых сессий
     db: {
         // выбирается конфиг в соответствии с NODE_ENV
         dev: {
@@ -13,6 +14,15 @@ module.exports = {
             database: 'chat-on-ws',
             user: 'user',
             password: 'password',
+        },
+        tests: {},
+        production: {},
+    },
+    redis: {
+        dev: {
+            host: 'localhost',
+            port: 6379,
+            db: 0,
         },
         tests: {},
         production: {},

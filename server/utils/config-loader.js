@@ -29,8 +29,13 @@ module.exports.load = () => {
 */
 const validateAndPrepareConfigParams = config => {
     const env = process.env.NODE_ENV || config.nodeEnv
+    _(config).forEach((val, key) => {
+        if (val[env]) {
+            config[key] = val[env]
+        }
+    })
 
-    const db = config.db[env]
+    const { db } = config
     if (!db) {
         throw new Error(`Cannot find db config for '${env}' env. Please put config params into 'config.js:db.${env}'`)
     }
@@ -45,12 +50,14 @@ const validateAndPrepareConfigParams = config => {
  */
 const assignConfigToEnv = config =>
     _(config).forEach((val, key) => {
-        const formattedKey = _(key)
-            .chain()
-            .snakeCase()
-            .toUpper()
-            .value()
-        if (!process.env[formattedKey]) {
-            process.env[formattedKey] = val
+        if (val && !_.isObject(val)) {
+            const formattedKey = _(key)
+                .chain()
+                .snakeCase()
+                .toUpper()
+                .value()
+            if (!process.env[formattedKey]) {
+                process.env[formattedKey] = val
+            }
         }
     })

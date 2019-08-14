@@ -9,7 +9,7 @@ console.log(`Starting server...`)
 
 config.load()
 
-io.on('connection', function(socket) {
+io.on('connection', async function(socket) {
     console.log(`New socket connected. Count of connected sockets: ${Object.keys(io.sockets.sockets).length}`)
     socket.on('disconnect', reason => {
         console.log(
