@@ -1,5 +1,7 @@
 const knex = require('../utils/knex')
 const BaseHandler = require('./base')
+const redis = require('../utils/redis')
+
 const attach = socket => {
     socket.chatsHandlers = new ChatsHandlers(socket)
 }
@@ -32,9 +34,66 @@ class ChatsHandlers extends BaseHandler {
         return usersIds
     }
 
-    async rpcGetChats() {
+    makeChatReadOnlyUsersRedisKey(chatId) {
+        return `chats:${chatId}:read-only-users`
+    }
+
+    async rpcChangeChatPermissions({ chatId, permissions, userId }) {
         this.validateAuthorization()
-        return knex('chats').orderBy('name', 'asc')
+        if (!this.socket.ctx.user.isAdmin) {
+            throw this.makeRpcError({ code: 'NOT_ENOUGH_RIGHTS', message: 'Only admins can do that action' })
+        }
+        if (
+            !(await knex('chats')
+                .first('id')
+                .where({ id: chatId }))
+        ) {
+            throw this.makeRpcError({ code: 'CHAT_NOT_FOUND', message: `Chat(${chatId}) not exists` })
+        }
+        if (
+            !(await knex('users')
+                .first('id')
+                .where({ id: userId }))
+        ) {
+            throw this.makeRpcError({ code: 'USER_NOT_FOUND', message: `User(${userId}) not exists` })
+        }
+        let wasChanged = 0
+        switch (permissions) {
+            case 'readWrite':
+                wasChanged = await redis.srem(this.makeChatReadOnlyUsersRedisKey(chatId), userId)
+                break
+            case 'readOnly':
+                wasChanged = await redis.sadd(this.makeChatReadOnlyUsersRedisKey(chatId), userId)
+                break
+        }
+        if (wasChanged) {
+            this.server.to(this.makeChatRoomName(chatId)).emit('UserChatPermissionsWasChanged', { userId, permissions })
+            return true
+        }
+        return false
+    }
+
+    async rpcGetChats({ filter = {}, limit } = {}) {
+        this.validateAuthorization()
+        const query = knex('chats')
+            .orderBy('name', 'asc')
+            .limit(limit)
+
+        if (filter.ids) {
+            query.whereIn('id', filter.ids)
+        }
+
+        return query.then(async chats => {
+            if (chats.length) {
+                const pipeline = redis.pipeline()
+                chats.forEach(chat => pipeline.smembers(this.makeChatReadOnlyUsersRedisKey(chat.id)))
+                const permissionsByChats = await pipeline.exec()
+                chats.forEach((chat, idx) => {
+                    chat.readOnlyUsers = permissionsByChats[idx][1]
+                })
+            }
+            return chats
+        })
     }
 
     async rpcGetChatMessages({ filter, limit }) {
@@ -70,7 +129,7 @@ class ChatsHandlers extends BaseHandler {
         if (chatId) {
             const roomName = this.makeChatRoomName(chatId)
             await this.leaveRoom(roomName)
-            this.socket.to(roomName).broadcast.emit('UserWasLeftTheChat', this.socket.ctx.user.id)
+            this.socket.to(roomName).emit('UserWasLeftTheChat', this.socket.ctx.user.id)
         }
     }
 
@@ -84,6 +143,12 @@ class ChatsHandlers extends BaseHandler {
 
     async rpcSendChatMessage({ text, chatId }) {
         this.validateAuthorization()
+        if (await redis.sismember(this.makeChatReadOnlyUsersRedisKey(chatId), this.socket.ctx.user.id)) {
+            throw this.makeRpcError({
+                code: 'YOU_HAVE_READ_ONLY_RIGHTS',
+                message: 'You have not permissions for send new messages into chat',
+            })
+        }
         const msg = { text, chatId, createdAt: new Date(), authorId: this.socket.ctx.user.id }
         await knex('chat_messages')
             .insert(msg)

@@ -2,6 +2,8 @@ const Joi = require('joi')
 
 const MAX_CHAT_MESSAGES_QUERY_LIMIT = 50
 const DEFAULT_CHAT_MESSAGES_QUERY_LIMIT = 20
+const MAX_CHATS_QUERY_LIMIT = 50
+const DEFAULT_CHATS_QUERY_LIMIT = 20
 const MAX_USERS_QUERY_LIMIT = 50
 const DEFAULT_USERS_QUERY_LIMIT = 20
 
@@ -57,10 +59,31 @@ module.exports = {
     rpcReissueTokenInputSchema: jwtSchema.required(),
     rpcAssignSessionInputSchema: jwtSchema.required(),
     rpcSubscribeToChatInputSchema: chatIdSchema.required(),
-    rpcSendChatMessage: Joi.object().keys({
+    rpcSendChatMessageInputSchema: Joi.object().keys({
         text: Joi.string()
             .min(1)
             .required(),
         chatId: chatIdSchema.required(),
+    }),
+    rpcGetOnlineUsersOfChatInputSchema: chatIdSchema.required(),
+    rpcGetChatsInputSchema: Joi.object().keys({
+        // fixme: тут если клиент вообще ничего не передает(а он имеет право), то получается так, что limit дефолтный пропадает, нужно почитать доку Joi
+        limit: Joi.number()
+            .integer()
+            .positive()
+            .default(DEFAULT_CHATS_QUERY_LIMIT)
+            .max(MAX_CHATS_QUERY_LIMIT),
+        filter: Joi.object().keys({
+            ids: Joi.array()
+                .min(1)
+                .items(chatIdSchema),
+        }),
+    }),
+    rpcChangeChatPermissionsInputSchema: Joi.object().keys({
+        chatId: chatIdSchema.required(),
+        userId: userIdSchema.required(),
+        permissions: Joi.string()
+            .allow('readWrite', 'readOnly')
+            .required(),
     }),
 }

@@ -7,7 +7,7 @@ export default class ChatsList extends React.Component {
             <ListGroup.Item
                 variant="light"
                 action
-                active={this.props.currentChatId === item.id}
+                active={this.props.currentChat && this.props.currentChat.id === item.id}
                 value={item.id}
                 key={item.id}
                 onClick={this.props.onClickHandler}

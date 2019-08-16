@@ -1,9 +1,8 @@
 const _ = require('lodash')
 const chalk = require('chalk')
 const uuid = require('uuid/v4')
-const crypto = require('crypto')
 const Redlock = require('redlock')
-const jwt = require('../utils/jwt')
+const auth = require('../utils/auth')
 const knex = require('../utils/knex')
 const BaseHandler = require('./base')
 const redis = require('../utils/redis')
@@ -11,7 +10,6 @@ const dateTime = require('../utils/date-time')
 
 const TIME_FOR_AUTH = 60 * 1000 * 5 // 5 min на вызовы signUp или signIn
 const TIME_TO_REFRESH_TOKEN = 60 * 1000 // 60 сек
-const PASSWORDS_HASH_SALT = 'B0FJ0Bb17OpR'
 
 const REDIS_SESSIONS_ACTIVITY_SET = 'sessions:last-activity'
 const REDIS_FORGOTTEN_SESSIONS_SET = 'sessions:forgotten'
@@ -168,7 +166,7 @@ class AuthHandlers extends BaseHandler {
                 this.socket.ctx.setSession({ user, jwt })
             } else {
                 const res = await knex('users')
-                    .first('id', 'login')
+                    .first('*')
                     .where({ id: user })
                 this.socket.ctx.setSession({ user: res, jwt })
             }
@@ -192,7 +190,7 @@ class AuthHandlers extends BaseHandler {
      */
     scheduleNotificationAboutTokenExpiration(token) {
         if (_.isString(token)) {
-            token = jwt.decode(token)
+            token = auth.decode(token)
         }
         if (this.tokenTimeoutTimer) {
             clearTimeout(this.tokenTimeoutTimer)
@@ -221,8 +219,8 @@ class AuthHandlers extends BaseHandler {
             })
         }
         const user = { id: uuid(), login }
-        await knex('users').insert({ ...user, password: hashPassword(password), createdAt: new Date() })
-        const token = await jwt.sign(user)
+        await knex('users').insert({ ...user, password: auth.hashPassword(password), createdAt: new Date() })
+        const token = await auth.sign(user)
         await this.assignUserToSocket({ user, jwt: token })
         this.scheduleNotificationAboutTokenExpiration(token)
         return { user: this.socket.ctx.user, token }
@@ -230,7 +228,7 @@ class AuthHandlers extends BaseHandler {
 
     async rpcSignIn({ login, password }) {
         const user = await knex('users')
-            .first('id', 'login', 'password')
+            .first('*')
             .where({ login })
         if (!user) {
             throw this.makeRpcError({
@@ -238,10 +236,10 @@ class AuthHandlers extends BaseHandler {
                 message: 'User with provided login not registered.',
             })
         }
-        if (hashPassword(password) !== user.password) {
+        if (auth.hashPassword(password) !== user.password) {
             throw this.makeRpcError({ code: 'INVALID_PASSWORD', message: 'Entered incorrect password or login' })
         }
-        const token = await jwt.sign(user)
+        const token = await auth.sign(user)
         await this.assignUserToSocket({ user, jwt: token })
         this.scheduleNotificationAboutTokenExpiration(token)
         return { user: this.socket.ctx.user, token }
@@ -251,11 +249,11 @@ class AuthHandlers extends BaseHandler {
         this.validateAuthorization()
 
         // fixme: нужно разделить ошибки JWT_EXPIRED и INVALID_TOKEN_SIGN чтобы клиент мог при желании это как-то более тонко обработать
-        if (!(await jwt.verify(token).catch(() => null))) {
+        if (!(await auth.verify(token).catch(() => null))) {
             throw this.makeRpcError({ code: 'JWT_EXPIRED', message: 'Invalid token provided' })
         }
 
-        const newToken = await jwt.sign(this.socket.ctx.user)
+        const newToken = await auth.sign(this.socket.ctx.user)
         this.scheduleNotificationAboutTokenExpiration(newToken)
 
         return newToken
@@ -263,7 +261,7 @@ class AuthHandlers extends BaseHandler {
 
     async rpcAssignSession(token) {
         if (!this.socket.ctx.user) {
-            const decodedToken = await jwt.verify(token).catch(() => null)
+            const decodedToken = await auth.verify(token).catch(() => null)
             // fixme: нужно разделить ошибки JWT_EXPIRED и INVALID_TOKEN_SIGN
             if (!decodedToken) {
                 throw this.makeRpcError({ code: 'JWT_EXPIRED', message: 'Invalid token provided' })
@@ -284,7 +282,7 @@ class SocketContext {
     }
 
     setSession({ user, jwt }) {
-        this.user = _.pick(user, 'id', 'login')
+        this.user = user
         this.jwt = jwt
     }
 
@@ -295,20 +293,18 @@ class SocketContext {
         return `${this.user.id}:${this.jwt.split('.')[2]}`
     }
 
+    get isAdmin() {
+        return this.user.isAdmin
+    }
+
     get isAuthenticated() {
         return Boolean(this.user)
     }
 
     get publicUserData() {
-        return _.pick(this.user, 'id', 'login')
+        return _.pick(this.user, 'id', 'login', 'isAdmin')
     }
 }
-
-const hashPassword = str =>
-    crypto
-        .createHash('sha256', PASSWORDS_HASH_SALT)
-        .update(str)
-        .digest('hex')
 
 // fixme: Вот это все нужно вынести из этого модуля, не место тут ему. Нужно по идее создать класс SessionsManager, который бы отвечал за работу именно с сессиями.
 // И тут в auth уже юзать его по необходимости. Это на будущее заметка.

@@ -56,22 +56,10 @@ class AuthModal extends React.Component {
                     <h4 align="center">Please enter login and password:</h4>
                     <Form>
                         <Form.Group controlId="formGroupLogin">
-                            <Form.Control
-                                type="text"
-                                placeholder="Enter login name"
-                                defaultValue="matvey.b"
-                                ref={this.loginRef}
-                                required
-                            />
+                            <Form.Control type="text" placeholder="Enter login name" ref={this.loginRef} required />
                         </Form.Group>
                         <Form.Group controlId="formGroupPassword">
-                            <Form.Control
-                                type="password"
-                                placeholder="Password"
-                                defaultValue="123321"
-                                ref={this.passwordRef}
-                                required
-                            />
+                            <Form.Control type="password" placeholder="Password" ref={this.passwordRef} required />
                         </Form.Group>
                         <Row>
                             <Col>

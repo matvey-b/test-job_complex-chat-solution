@@ -1,6 +1,8 @@
 const jwt = require('jsonwebtoken')
+const crypto = require('crypto')
 
 const TOKEN_LIFE_TIME = 3600 * 24 // 1h, number needs for tests
+const PASSWORDS_HASH_SALT = 'B0FJ0Bb17OpR'
 
 const JWT_SALT = 'g9GDXQMKCY0g'
 
@@ -25,4 +27,9 @@ module.exports = {
         const res = jwt.decode(token)
         return Object.assign(res, { timeToExpiration: res.exp * 1000 - Date.now() })
     },
+    hashPassword: str =>
+        crypto
+            .createHash('sha256', PASSWORDS_HASH_SALT)
+            .update(str)
+            .digest('hex'),
 }

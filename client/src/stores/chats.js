@@ -4,7 +4,7 @@ import authStore from './auth'
 import { makeRpcCall, socket } from '../io'
 
 class ChatsStore {
-    chats = []
+    chatsMap = new Map()
     // note: все время сортированы по убыванию и отсутствуют дубликаты
     chatsMessages = []
     storedMessagesIds = new Set()
@@ -13,6 +13,31 @@ class ChatsStore {
 
     constructor() {
         socket.on('NewChatMessage', msg => this.appendNotStoredMessages([msg]))
+        socket.on('UserChatPermissionsWasChanged', ({ userId, permissions }) => {
+            console.log('UserChatPermissionsWasChanged event:', { userId, permissions })
+            const updatedChat = this.currentChat
+            if (permissions === 'readOnly') {
+                updatedChat.readOnlyUsers.push(userId)
+            } else {
+                updatedChat.readOnlyUsers = updatedChat.readOnlyUsers.filter(id => id !== userId)
+            }
+            this.upsertChatsToStore([updatedChat])
+        })
+    }
+
+    get haveWritePerms() {
+        if (this.currentChat) {
+            return !this.currentChat.readOnlyUsers.includes(authStore.user.id)
+        }
+        return false
+    }
+
+    get chats() {
+        return [...this.chatsMap.values()]
+    }
+
+    get currentChat() {
+        return this.currentChatId ? this.chats.find(chat => chat.id === this.currentChatId) || null : null
     }
 
     get currentChatMessages() {
@@ -65,12 +90,29 @@ class ChatsStore {
         this.chatsMessages = mergedMessages
     }
 
+    upsertChatsToStore(chats) {
+        if (Array.isArray(chats) && chats.length) {
+            const updatedChatsMap = new Map(this.chatsMap)
+            chats.forEach(chat => {
+                updatedChatsMap.set(chat.id, chat)
+            })
+            this.chatsMap = updatedChatsMap
+        }
+    }
+
+    async loadCurrentChat() {
+        if (this.currentChatId) {
+            this.isLoading = true
+            const chats = await makeRpcCall('rpcGetChats', { filter: { ids: [this.currentChatId] } })
+            this.upsertChatsToStore(chats)
+            this.isLoading = false
+        }
+    }
+
     async loadChats() {
         this.isLoading = true
         const items = await makeRpcCall('rpcGetChats')
-        if (Array.isArray(items)) {
-            this.chats = items
-        }
+        this.upsertChatsToStore(items)
         this.isLoading = false
     }
 
@@ -103,7 +145,10 @@ class ChatsStore {
 }
 
 decorate(ChatsStore, {
-    chats: observable,
+    chatsMap: observable,
+    chats: computed,
+    haveWritePerms: computed,
+    currentChat: computed,
     chatsMessages: observable,
     isLoading: observable,
     currentChatId: observable,

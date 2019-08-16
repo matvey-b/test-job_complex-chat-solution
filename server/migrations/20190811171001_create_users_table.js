@@ -2,6 +2,7 @@
 // eslint-disable-next-line no-unused-vars
 const knex = require('../utils/knex')
 const uuid = require('uuid/v4')
+const auth = require('../utils/auth')
 
 /**
  * @param {knex} knex
@@ -14,13 +15,15 @@ exports.up = async knex => {
             .unique()
             .notNullable()
         table.string('password').notNullable()
+        table.boolean('isAdmin')
         table.dateTime('createdAt').notNullable()
     })
 
     await knex('users').insert({
         id: uuid(),
         login: 'admin',
-        password: 'asldfkjj',
+        password: auth.hashPassword('123321'),
+        isAdmin: true,
         createdAt: new Date(),
     })
 }

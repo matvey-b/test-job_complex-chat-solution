@@ -18,6 +18,7 @@ export default observer(
             // note: нужно последовательно выполнить след действия (это не совсем разумно, но я так косячно сделал фронтенд, что других вариантов нет)
             // доигрался с mobx-ом =)
             await chatsStore.subscribeToChat(chatId)
+            await chatsStore.loadCurrentChat()
             await chatsStore.loadOnlineUsers(chatId)
             await chatsStore.loadMessages({ filter: { chatId } })
         }
@@ -31,24 +32,25 @@ export default observer(
         }
         render() {
             return (
-                <Container>
-                    <Row style={{ height: '500px' }}>
+                <Container fluid>
+                    <Row>
                         <Col md={2}>
                             <ChatList
                                 items={chatsStore.chats}
                                 onClickHandler={this.handleChatSelection}
-                                currentChatId={chatsStore.currentChatId}
+                                currentChat={chatsStore.currentChat}
                             />
                         </Col>
                         <Col>
                             <MessagesList
                                 items={chatsStore.currentChatMessages}
                                 sendMessageHandler={chatsStore.sendMessage.bind(chatsStore)}
-                                currentChatId={chatsStore.currentChatId}
+                                currentChat={chatsStore.currentChat}
+                                haveWritePerms={chatsStore.haveWritePerms}
                             />
                         </Col>
                         <Col md={2}>
-                            <ChatUsersList items={chatsStore.onlineUsers} />
+                            <ChatUsersList items={chatsStore.onlineUsers} currentChat={chatsStore.currentChat} />
                         </Col>
                     </Row>
                 </Container>

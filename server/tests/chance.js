@@ -1,3 +1,4 @@
+const _ = require('lodash')
 const Chance = require('chance')
 
 const chance = Chance()
@@ -7,7 +8,7 @@ chance.mixin({
         return {
             id: chance.guid(),
             ownerId: chance.guid(),
-            name: chance.word(),
+            name: _.capitalize(chance.word()),
             createdAt: chance.date(),
             ...params,
         }

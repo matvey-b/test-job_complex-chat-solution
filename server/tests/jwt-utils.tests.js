@@ -1,7 +1,5 @@
-const _ = require('lodash')
-const pMap = require('p-map')
-const { expect, wait } = require('./utils')
-const jwt = require('../utils/jwt')
+const { expect } = require('./utils')
+const jwt = require('../utils/auth')
 
 describe('JWT utils tests', function() {
     it('sign and validate should work as expected', async function() {

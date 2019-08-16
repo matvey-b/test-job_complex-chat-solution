@@ -13,7 +13,7 @@ class UsersHandlers extends BaseHandler {
     async rpcGetUsers({ filter = {}, limit }) {
         this.validateAuthorization()
         const query = knex('users')
-            .select('id', 'login')
+            .select('id', 'login', 'isAdmin')
             .limit(limit)
         if (filter.ids) {
             query.whereIn('id', filter.ids)

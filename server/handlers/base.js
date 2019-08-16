@@ -156,7 +156,7 @@ class BaseHandler {
                 if (validator) {
                     // note: попытка уйти от ручных валидаций в коде
                     // единственное, я пока не заморачиваюсь и валидирую только первый аргумент
-                    await validator.validate(args[0])
+                    args[0] = await validator.validate(args[0])
                 } else if (args.length) {
                     console.log(
                         `${chalk.redBright(

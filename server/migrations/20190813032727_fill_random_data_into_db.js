@@ -6,9 +6,15 @@ const chance = require('../tests/chance')
 
 const users = _.times(10, () => chance.user())
 const chats = users.map(({ id }) => chance.chat({ ownerId: id }))
-const messages = _(_.times(300, () => chance.natural({ min: 1, max: 999999 })))
-    .uniq()
-    .map(id => chance.message({ id, authorId: _.sample(users).id, chatId: _.sample(chats).id }))
+let createdAt = Date.now()
+const messages = _(new Array(300).fill(null))
+    .map(() =>
+        chance.message({
+            authorId: _.sample(users).id,
+            chatId: _.sample(chats).id,
+            createdAt: new Date((createdAt += 60000)),
+        }),
+    )
     .value()
 
 /**
