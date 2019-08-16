@@ -1,11 +1,10 @@
 import React from 'react'
-import users from '../stores/users'
 import chatsStore from '../stores/chats'
 import { observer } from 'mobx-react'
-import { makeRpcCall, socket } from '../io'
-import { Container, Row, Col, ListGroup } from 'react-bootstrap'
+import { Container, Row, Col } from 'react-bootstrap'
 import ChatList from './ChatsList'
 import MessagesList from './MessagesList'
+import ChatUsersList from './ChatUsersList'
 
 export default observer(
     class ChatsContainer extends React.Component {
@@ -16,33 +15,40 @@ export default observer(
 
         async handleChatSelection(e) {
             const chatId = e.currentTarget.value
-            await Promise.all([chatsStore.subscribeToChat(chatId), chatsStore.loadMessages({ filter: { chatId } })])
+            // note: нужно последовательно выполнить след действия (это не совсем разумно, но я так косячно сделал фронтенд, что других вариантов нет)
+            // доигрался с mobx-ом =)
+            await chatsStore.subscribeToChat(chatId)
+            await chatsStore.loadOnlineUsers(chatId)
+            await chatsStore.loadMessages({ filter: { chatId } })
         }
         async componentDidMount() {
             await chatsStore.loadChats()
+            if (chatsStore.currentChatId) {
+                await chatsStore.subscribeToChat(chatsStore.currentChatId)
+                await chatsStore.loadOnlineUsers(chatsStore.currentChatId)
+                await chatsStore.loadMessages({ filter: { chatId: chatsStore.currentChatId } })
+            }
         }
         render() {
             return (
                 <Container>
-                    <Row>
+                    <Row style={{ height: '500px' }}>
                         <Col md={2}>
-                            <ChatList items={chatsStore.chats} onClickHandler={this.handleChatSelection} />
+                            <ChatList
+                                items={chatsStore.chats}
+                                onClickHandler={this.handleChatSelection}
+                                currentChatId={chatsStore.currentChatId}
+                            />
                         </Col>
                         <Col>
-                            <MessagesList items={chatsStore.currentChatMessages} />
+                            <MessagesList
+                                items={chatsStore.currentChatMessages}
+                                sendMessageHandler={chatsStore.sendMessage.bind(chatsStore)}
+                                currentChatId={chatsStore.currentChatId}
+                            />
                         </Col>
                         <Col md={2}>
-                            <ListGroup>
-                                <ListGroup.Item>No style</ListGroup.Item>
-                                <ListGroup.Item variant="primary">Primary</ListGroup.Item>
-                                <ListGroup.Item variant="secondary">Secondary</ListGroup.Item>
-                                <ListGroup.Item variant="success">Success</ListGroup.Item>
-                                <ListGroup.Item variant="danger">Danger</ListGroup.Item>
-                                <ListGroup.Item variant="warning">Warning</ListGroup.Item>
-                                <ListGroup.Item variant="info">Info</ListGroup.Item>
-                                <ListGroup.Item variant="light">Light</ListGroup.Item>
-                                <ListGroup.Item variant="dark">Dark</ListGroup.Item>
-                            </ListGroup>
+                            <ChatUsersList items={chatsStore.onlineUsers} />
                         </Col>
                     </Row>
                 </Container>

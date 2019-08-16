@@ -4,6 +4,7 @@ const httpServer = require('http').createServer()
 const io = require('socket.io')(httpServer)
 const authHandler = require('./handlers/auth')
 const chatsHandlers = require('./handlers/chats')
+const usersHandlers = require('./handlers/users')
 
 console.log(`Starting server...`)
 
@@ -22,6 +23,7 @@ io.on('connection', async function(socket) {
     })
     authHandler.attach(socket)
     chatsHandlers.attach(socket)
+    usersHandlers.attach(socket)
 })
 
 httpServer.listen({ host: '0.0.0.0', port: process.env.HTTP_PORT }, () =>

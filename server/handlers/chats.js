@@ -26,7 +26,10 @@ class ChatsHandlers extends BaseHandler {
     }
 
     async rpcGetOnlineUsersOfChat(chatId) {
-        const clients = await this.server.in(this.makeChatRoomName(chatId)).clients()
+        const usersIds = await this.getUsersIdsConnectedToRoom(this.makeChatRoomName(chatId))
+        console.log(usersIds)
+
+        return usersIds
     }
 
     async rpcGetChats() {
@@ -60,14 +63,14 @@ class ChatsHandlers extends BaseHandler {
     async joinToChat(chatId) {
         const roomName = this.makeChatRoomName(chatId)
         await this.joinToRoom(roomName).then(() => (this.currentChatId = chatId))
-        this.socket.to(roomName).broadcast.emit('UserWasJoinedToChat', this.socket.ctx.publicUserData)
+        this.socket.to(roomName).broadcast.emit('UserWasJoinedToChat', this.socket.ctx.user.id)
     }
 
     async leaveChat(chatId) {
         if (chatId) {
             const roomName = this.makeChatRoomName(chatId)
             await this.leaveRoom(roomName)
-            this.socket.to(roomName).broadcast.emit('UserWasLeftTheChat', this.socket.ctx.publicUserData)
+            this.socket.to(roomName).broadcast.emit('UserWasLeftTheChat', this.socket.ctx.user.id)
         }
     }
 
@@ -77,6 +80,16 @@ class ChatsHandlers extends BaseHandler {
             await Promise.all([this.joinToChat(chatId), this.leaveChat(this.currentChatId)])
         }
         return true
+    }
+
+    async rpcSendChatMessage({ text, chatId }) {
+        this.validateAuthorization()
+        const msg = { text, chatId, createdAt: new Date(), authorId: this.socket.ctx.user.id }
+        await knex('chat_messages')
+            .insert(msg)
+            .then(([id]) => Object.assign(msg, { id }))
+        this.socket.to(this.makeChatRoomName(chatId)).broadcast.emit('NewChatMessage', msg)
+        return msg
     }
 }
 

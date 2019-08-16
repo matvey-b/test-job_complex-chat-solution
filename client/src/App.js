@@ -8,7 +8,6 @@ import authStore from './stores/auth'
 import { observer } from 'mobx-react'
 
 export default observer(function App() {
-    console.log('auth ' + authStore.isAuthenticated, 'reconnected ' + authStore.isReconnected)
     return (
         <>
             <AuthModal />

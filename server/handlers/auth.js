@@ -2,22 +2,85 @@ const _ = require('lodash')
 const chalk = require('chalk')
 const uuid = require('uuid/v4')
 const crypto = require('crypto')
+const Redlock = require('redlock')
 const jwt = require('../utils/jwt')
 const knex = require('../utils/knex')
 const BaseHandler = require('./base')
 const redis = require('../utils/redis')
+const dateTime = require('../utils/date-time')
 
 const TIME_FOR_AUTH = 60 * 1000 * 5 // 5 min на вызовы signUp или signIn
 const TIME_TO_REFRESH_TOKEN = 60 * 1000 // 60 сек
 const PASSWORDS_HASH_SALT = 'B0FJ0Bb17OpR'
-const REDIS_SESSIONS_ACTIVITY_SET_KEY = 'sessions-last-activity'
+
+const REDIS_SESSIONS_ACTIVITY_SET = 'sessions:last-activity'
+const REDIS_FORGOTTEN_SESSIONS_SET = 'sessions:forgotten'
+const REDIS_FORGOTTEN_SESSIONS_CLEANUP_LOCK = `lock:forgotten-sessions-cleanup`
+
 const SESSION_ACTIVITY_UPDATE_INTERVAL = 60 * 2 * 1000
-const DELETE_FORGOTTEN_SESSIONS_INTERVAL = 5 * 60 * 1000
+const CLEANUP_FORGOTTEN_SESSIONS_INTERVAL = 5 * 60 * 1000
 
 const attach = socket => {
     socket.authHandlers = new AuthHandlers(socket)
 }
+/* 
+РАЗМЫШЛЕНИЯ О ПРОБЛЕМАХ РАСПРЕДЕЛЕННОЙ СИСТЕМЫ И ПОТЕРЯННЫХ СЕССИЯХ
+Фичи которые реализует сервис, требуют знания о всех активных в текущий момент сессиях для каждого из пользователей. При этом пользователь,
+может порождать больше одной сессии.
+Инфа о созданных сессиях естественно должна храниться в доступном для всех нод хранилище. Очевидно это должен быть reids, т.к. сессии это горячие данные, которые
+лучше хранить в быстрой памяти.
+В нормальных условиях сессии создает и удаляет нода которая их обслуживает.
+Но бывают сценарии когда ноды могут быть по беспределу =) отрублены, например через SIGKILL.
+В таких случаях в системе начинают появляться "пропащие" сессии, за которые никто не отвечает. Т.е. например, могут появляться юзеры, которые находятся в
+"вечном" онлайне.
+По моему мнению, на такие случаи, в любой распределенной системе обязательно должны быть fallback механизмы, которые подчищали бы систему от заблудших душ(сессий) =)
+Далее я пытаюсь придумать оптимальный подход к решению этой проблемы.
+Для меня задачка оказалась не тривиальной...
 
+Распределенная чистка "потерянных" сессий:
+1. Одна из нод делает глобальный лок на эту операцию(чтобы другие ноды не занимались тем же самым одновременно с этой).
+2. Нода смотрит на время последней чистки, если это было достаточно давно, то ок, идет далее, иначе бросает эту операцию,
+делает поправку на следующий запуск чистки с учетом времени последней(для того, чтобы более или менее совпадал интервал чистки с заданным параметром
+на уровне всей системы, например раз в 5 мин) и освобождает лок.
+3. Далее она берет все сессии которые не отчитывались о своем присутствии слишком долго и перекладывает их в множество "потерянных" сессий,
+сохраняя при этом timestamp-ы их последних откликов. Это будет полезной инфой для других воркеров убирающихся в других участках системы.
+4. Далее она вычищает множество потерянных сессий от "давно давно" забытых сессий, т.к. другие воркеры уже скорее всего воспользовались этой инфой.
+Для того, чтобы гарантировать, что другие воркеры воспользовались данной инфой и она больше не нужна, после любых полных остановок системы,
+мы обязаны в первую очередь дать поработать другим воркерам зависим от этих данных и только потом запускать этот.
+5. Далее пишет время последней такой же чистки(чтобы другие ноды лишний раз не чистили и не тратили ресурсы попусту) в reids и разблокирует лок на эту операцию.
+Таким образом у нас получается система в которой одновременно все ноды страхуют друг друга и в случае вылета одной, другая сделает чистку за первую.
+А также система, в которой любая нода с достаточно высокой точностью и простотой может выяснить инфу о реальном присутствии сессий в системе.
+
+Распределенная чистка комнат от потерянных сессий:
+1. Одна из нод делает лок на эту операцию
+2. Нода берет список комнат в которых есть хоть одна сессия.
+3. Далее для каждой из комнат:
+    3.1 нода берет пересечение от сессий комнаты и списка пропавших сессий.
+    3.2 если пересечение не пустое, то далее
+    3.3 нода удаляет из комнаты сессии, полученные выше
+    3.4 нода вызывает процессы связанные с удалением указанных сессий из комнат (процессы могут быть самыми разными, это выходит за рамки ответственности чистильщика)
+4. Далее нода пишет в reids последнее время этой чистки и освобождает лок.
+Процедура на больших множествах данных выглядит достаточно тяжелой. Однако если бекенды ну будут часто не gracefully отрубаться, то тут никогда не должно становиться много "потерянных" сессий.
+Плюс работа с сортированными множествами в основном соответствует алгоритмической сложности O(log) и O(1), т.е. достаточно эффективна, даже на больших данных.
+Где-то читал, что полный перебор множества из 1 * 10^6 элементов, на средненьком ноуте занимает 40мс. Так что, кол-во одновременных сессий, должно исчисляться сотнями тысяч, чтобы это стало узким местом.
+
+
+room:1:users = [user1:socket1 = timestamp, user1:socket2 = timestamp, user2:socket1 = timestamp, ...]
+rooms = [room1 = usersCount, room2 = usersCount, ...]
+sessions = [user1:socket1 = timestamp, ...]
+
+getRooms = () => rooms
+getActiveRooms = () => rooms.filter(usersCount => usersCount >= 1)
+getUsers = (roomName) => room:1
+cleanUpInRooms => () => {
+    activeRooms = getActiveRooms()
+    forgottenConnections = getForgottenConnections()
+    for (room of activeRooms) {
+        deletedConnections = intersect(room, forgottenConnections)
+        
+    }
+}
+*/
 /* 
 Клиент может подключиться к бекенду без аутентификации. Но если он не сделает assignSession в течение TIME_FOR_AUTH, то сокет будет принудительно отключен.
 Аутентификация клиента основана на JWT. Для того, чтобы получить токен, нужно сделать вызовы signUp(регистрация) или signIn(аутентификация).
@@ -31,14 +94,6 @@ const attach = socket => {
 
 Обычно в системах определают два токена refreshToken и activeToken.
 Первый из них обычно используется только для перевыпуска active токена. Но тут я решил не тратить на это время и сделал так, что activeToken позволяет перевыпустить себя. 
-
-
-Для некоторых фич, бекенду нужно знать кто сейчас подключен к сервису и из-за того, что в виде эксперимента я решил обеспечить поддержку кластеризации, стало необходимо
-хранить инфу о подключенных пользователях в redis.
-Это сделано в виде хранения ключей userId:socketId в sorted set. Значениями этих ключей будет timestamp момента, когда сокет делал очередной acknowledge о своем присутствии.
-ZSET sessions-last-activity = [user1:session1 = last-ack-timestamp, user1:session2 = last-ack-timestamp, ...]
-Отдельный воркер должен будет вычищать из этого множества все записи у которых timestamp не обновлялся более чем какой-то разрешенный порог времени
-Т.е. если клиент не подтверждал свое присутствие в течение, например 5 мин, то он будет считаться потерянным. Такое может произойти например, если на бекенде убить процесс ноды.
 */
 
 class AuthHandlers extends BaseHandler {
@@ -48,6 +103,21 @@ class AuthHandlers extends BaseHandler {
             this.socket.ctx = new SocketContext(socket)
         }
         this.setDestroyNotAuthorizedSocketTimeout(TIME_FOR_AUTH)
+
+        this.socket.use((packet, next) => {
+            if (!socket.eventNames().includes(_.head(packet))) {
+                console.log(chalk.red(`Gotten unknown message on socket: `), packet)
+                if (_.isFunction(_.last(packet))) {
+                    return _.last(packet)({
+                        name: 'Error',
+                        code: 'UNSUPPORTED_RPC_METHOD',
+                        message: `Server not supports '${_.head(packet)}' rpc method`,
+                    })
+                }
+                return next(new Error(`Message '${_.head(packet)} is not supported by server`))
+            }
+            next()
+        })
     }
 
     /**
@@ -60,18 +130,16 @@ class AuthHandlers extends BaseHandler {
         this.destroyNotAuthorizedSocketTimer = setTimeout(() => this.socket.disconnect(), time)
     }
 
+    // fixme: за это должен отвечать SessionManager
     async deleteSessionActivityEntity() {
         if (this.socket.ctx.user) {
-            await redis.zrem(REDIS_SESSIONS_ACTIVITY_SET_KEY, this.makeSessionActivityKey())
+            await redis.zrem(REDIS_SESSIONS_ACTIVITY_SET, this.socket.ctx.sessionId)
         }
     }
 
-    async insertSessionActivityEntity() {
-        await redis.zadd(REDIS_SESSIONS_ACTIVITY_SET_KEY, getCurrentUnixTime(), this.makeSessionActivityKey())
-    }
-
-    makeSessionActivityKey() {
-        return `${this.socket.ctx.user.id}:${this.socket.id}`
+    // fixme: за это должен отвечать SessionManager
+    async upsertSessionActivityEntity() {
+        await redis.zadd(REDIS_SESSIONS_ACTIVITY_SET, dateTime.asUnixTime(), this.socket.ctx.sessionId)
     }
 
     clearTimers() {
@@ -82,23 +150,31 @@ class AuthHandlers extends BaseHandler {
 
     assignEventListeners() {
         // note: после удаления сокета, таймеры остаются жить, поэтому нужно их принудительно отключать
-        this.socket.on('disconnect', () => {
+        this.socket.on('disconnect', async () => {
             this.clearTimers()
+            // fixme: этим тоже должен заниматься SessionManager, т.к. слишком много обязанностей возложено на AuthHandler
+            if (this.socket.ctx.user) {
+                await this.deleteSessionActivityEntity()
+            }
+            if (this.connectedRooms && this.connectedRooms.size) {
+                await Promise.all([...this.connectedRooms].map(this.leaveRoom.bind(this)))
+            }
         })
     }
 
-    async assignUserToSocket(user) {
+    async assignUserToSocket({ user, jwt }) {
         if (_.get(this.socket.ctx, 'user.id') !== (user.id || user)) {
             if (_.isObject(user)) {
-                this.socket.ctx.setUser(user)
+                this.socket.ctx.setSession({ user, jwt })
             } else {
                 const res = await knex('users')
                     .first('id', 'login')
                     .where({ id: user })
-                this.socket.ctx.setUser(res)
+                this.socket.ctx.setSession({ user: res, jwt })
             }
+            await this.upsertSessionActivityEntity()
             this.updateSessionActivityTimer = setInterval(
-                () => this.insertSessionActivityEntity(),
+                () => this.upsertSessionActivityEntity(),
                 SESSION_ACTIVITY_UPDATE_INTERVAL,
             )
             console.log(`${this.socket.ctx.user.login} was authenticated`)
@@ -147,7 +223,7 @@ class AuthHandlers extends BaseHandler {
         const user = { id: uuid(), login }
         await knex('users').insert({ ...user, password: hashPassword(password), createdAt: new Date() })
         const token = await jwt.sign(user)
-        await this.assignUserToSocket(user)
+        await this.assignUserToSocket({ user, jwt: token })
         this.scheduleNotificationAboutTokenExpiration(token)
         return { user: this.socket.ctx.user, token }
     }
@@ -166,7 +242,7 @@ class AuthHandlers extends BaseHandler {
             throw this.makeRpcError({ code: 'INVALID_PASSWORD', message: 'Entered incorrect password or login' })
         }
         const token = await jwt.sign(user)
-        await this.assignUserToSocket(user)
+        await this.assignUserToSocket({ user, jwt: token })
         this.scheduleNotificationAboutTokenExpiration(token)
         return { user: this.socket.ctx.user, token }
     }
@@ -193,7 +269,7 @@ class AuthHandlers extends BaseHandler {
                 throw this.makeRpcError({ code: 'JWT_EXPIRED', message: 'Invalid token provided' })
             }
 
-            await this.assignUserToSocket(decodedToken.userId)
+            await this.assignUserToSocket({ user: decodedToken.userId, jwt: token })
             this.scheduleNotificationAboutTokenExpiration(decodedToken)
         }
 
@@ -204,10 +280,19 @@ class AuthHandlers extends BaseHandler {
 class SocketContext {
     constructor(socket) {
         this.user = null
+        this.jwt = null
     }
 
-    setUser(user) {
+    setSession({ user, jwt }) {
         this.user = _.pick(user, 'id', 'login')
+        this.jwt = jwt
+    }
+
+    get sessionId() {
+        if (!this.user) {
+            throw new Error(`Cannot create sessionId for not authenticated user`)
+        }
+        return `${this.user.id}:${this.jwt.split('.')[2]}`
     }
 
     get isAuthenticated() {
@@ -225,21 +310,65 @@ const hashPassword = str =>
         .update(str)
         .digest('hex')
 
-const getCurrentUnixTime = () => Math.floor(Date.now() / 1000)
-if (process.env.MAINTAIN_FORGOTTEN_SESSIONS === 'true') {
-    console.log(
-        chalk.green.bold(`That node configured to cleaning up forgotten sessions. Setting up cleaning interval...`),
-    )
-    setInterval(async () => {
-        const res = await redis.zremrangebyscore(
-            REDIS_SESSIONS_ACTIVITY_SET_KEY,
-            '-inf',
-            getCurrentUnixTime() - SESSION_ACTIVITY_UPDATE_INTERVAL / 1000 - 10, // 10 сек на всякий пожарный набрасываю, вдруг у клиента сеть сильно мигает.
-        )
-        if (res) {
-            console.log(chalk.green.bold(`FORGOTTEN SESSIONS SET WAS SUCCESSFULLY CLEANED. DELETED ${res} ENTITIES`))
+// fixme: Вот это все нужно вынести из этого модуля, не место тут ему. Нужно по идее создать класс SessionsManager, который бы отвечал за работу именно с сессиями.
+// И тут в auth уже юзать его по необходимости. Это на будущее заметка.
+const cleanupForgottenSessions = async () => {
+    try {
+        const redlock = new Redlock([redis], { retryCount: 0 })
+        await redlock.lock(REDIS_FORGOTTEN_SESSIONS_CLEANUP_LOCK, 2000).then(async lock => {
+            // точка во времени, до которой сессии считаются устаревшими
+            const edgeOfActivityTimestamp =
+                dateTime.asUnixTime() - dateTime.asUnixTime(SESSION_ACTIVITY_UPDATE_INTERVAL)
+            const forgottenSessions = await redis.zrangebyscore(
+                REDIS_SESSIONS_ACTIVITY_SET,
+                '-inf',
+                edgeOfActivityTimestamp,
+                'WITHSCORES',
+            )
+            if (forgottenSessions.length) {
+                // note: добавляем забытые сессии в список забытых, чтобы потом можно было использовать их по назначению
+                await redis.zadd(REDIS_FORGOTTEN_SESSIONS_SET, forgottenSessions.slice().reverse())
+                const deletedCount = await redis.zremrangebyscore(
+                    REDIS_SESSIONS_ACTIVITY_SET,
+                    '-inf',
+                    edgeOfActivityTimestamp,
+                )
+                console.log(
+                    chalk.green.bold(
+                        `FORGOTTEN SESSIONS SET WAS SUCCESSFULLY CLEANED. DELETED ${deletedCount} ENTITIES:`,
+                    ),
+                    '\n',
+                    _(forgottenSessions)
+                        .chunk(2)
+                        .map(pair => {
+                            pair[1] = new Date(pair[1] * 1000)
+                            return pair
+                        })
+                        .fromPairs()
+                        .value(),
+                )
+            }
+            await redis.zremrangebyscore(REDIS_FORGOTTEN_SESSIONS_SET, '-inf', dateTime.asUnixTime() - 3600) // note: все забытые сессии которым уже исполнилось больше чата, удаляем
+
+            return lock.unlock()
+        })
+    } catch (error) {
+        if (error.name === 'LockError') {
+            if (error.attempts) {
+                // лок занят
+                // fixme: Тут нужно перепланировать вызов чистки с учетом того, когда она была сделана в последний раз.
+                // смысл в том, что нужно добиться того, чтобы только одна из нод раз в указанный промежуток времени делала эту чистку
+                // т.к. нефиг нагружать систему лишним процессингом =)
+                // нет времени делать это сейчас, оставлю на "потом"
+                return
+            } else {
+                // не успел сделать операцию до конца таймаута лока или что-то другое
+            }
         }
-    }, DELETE_FORGOTTEN_SESSIONS_INTERVAL)
+        console.log(`An error occured while cleaning up forgotten sessions:`, error)
+    }
 }
 
-module.exports = { attach }
+setInterval(cleanupForgottenSessions, CLEANUP_FORGOTTEN_SESSIONS_INTERVAL)
+
+module.exports = { attach, REDIS_FORGOTTEN_SESSIONS_SET_KEY: REDIS_FORGOTTEN_SESSIONS_SET }

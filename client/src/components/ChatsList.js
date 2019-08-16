@@ -15,6 +15,12 @@ export default class ChatsList extends React.Component {
                 {item.name}
             </ListGroup.Item>
         ))
-        return <ListGroup>{items}</ListGroup>
+        return (
+            <div>
+                <h5>Chats:</h5>
+                <hr />
+                <ListGroup>{items}</ListGroup>
+            </div>
+        )
     }
 }

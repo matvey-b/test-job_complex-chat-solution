@@ -1,4 +1,6 @@
-const { expect } = require('./utils')
+const _ = require('lodash')
+const pMap = require('p-map')
+const { expect, wait } = require('./utils')
 const jwt = require('../utils/jwt')
 
 describe('JWT utils tests', function() {

@@ -57,4 +57,10 @@ module.exports = {
     rpcReissueTokenInputSchema: jwtSchema.required(),
     rpcAssignSessionInputSchema: jwtSchema.required(),
     rpcSubscribeToChatInputSchema: chatIdSchema.required(),
+    rpcSendChatMessage: Joi.object().keys({
+        text: Joi.string()
+            .min(1)
+            .required(),
+        chatId: chatIdSchema.required(),
+    }),
 }
