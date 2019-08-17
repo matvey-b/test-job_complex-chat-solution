@@ -35,7 +35,6 @@ export default class MessagesList extends React.Component {
         }
     }
     render() {
-        console.log(this.props)
         const makeListItems = () => {
             const emptyList = (
                 <Row>

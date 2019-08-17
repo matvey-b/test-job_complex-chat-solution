@@ -1,5 +1,7 @@
 node_modules
 .vscode
 .tmp
+.db/*
+!.db/.gitinit
 
 server/config.js

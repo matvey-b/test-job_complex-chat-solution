@@ -103,6 +103,7 @@ class AuthHandlers extends BaseHandler {
         this.setDestroyNotAuthorizedSocketTimeout(TIME_FOR_AUTH)
 
         this.socket.use((packet, next) => {
+            // fixme: этому тут не место
             if (!socket.eventNames().includes(_.head(packet))) {
                 console.log(chalk.red(`Gotten unknown message on socket: `), packet)
                 if (_.isFunction(_.last(packet))) {

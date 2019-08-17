@@ -28,10 +28,7 @@ class ChatsHandlers extends BaseHandler {
     }
 
     async rpcGetOnlineUsersOfChat(chatId) {
-        const usersIds = await this.getUsersIdsConnectedToRoom(this.makeChatRoomName(chatId))
-        console.log(usersIds)
-
-        return usersIds
+        return this.getUsersIdsConnectedToRoom(this.makeChatRoomName(chatId))
     }
 
     makeChatReadOnlyUsersRedisKey(chatId) {

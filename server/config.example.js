@@ -9,17 +9,17 @@ module.exports = {
     db: {
         // выбирается конфиг в соответствии с NODE_ENV
         dev: {
-            host: 'localhost',
-            database: 'chat-on-ws',
-            user: 'user',
-            password: 'password',
+            host: 'mysql',
+            database: 'chat',
+            user: 'chat',
+            password: 'chat',
         },
         tests: {},
         production: {},
     },
     redis: {
         dev: {
-            host: 'localhost',
+            host: 'redis',
             port: 6379,
             db: 0,
         },

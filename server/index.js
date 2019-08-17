@@ -27,5 +27,5 @@ io.on('connection', async function(socket) {
 })
 
 httpServer.listen({ host: '0.0.0.0', port: process.env.HTTP_PORT }, () =>
-    console.log(`Server listening on ${httpServer.address().port}...`),
+    console.log(`Server listening on ${JSON.stringify(httpServer.address())}...`),
 )

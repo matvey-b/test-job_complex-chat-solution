@@ -7,11 +7,9 @@ let loadOnlineUsersOfChatPromise = null
 class UsersStore {
     constructor() {
         socket.on('UserWasJoinedToChat', userId => {
-            console.log('userWaJoinedToChat event', userId)
             this.onlineUsersIds.add(userId)
         })
         socket.on('UserWasLeftTheChat', userId => {
-            console.log('userWaLeftTheChat event', userId)
             this.onlineUsersIds.delete(userId)
         })
     }

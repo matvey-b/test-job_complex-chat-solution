@@ -14,7 +14,6 @@ class ChatsStore {
     constructor() {
         socket.on('NewChatMessage', msg => this.appendNotStoredMessages([msg]))
         socket.on('UserChatPermissionsWasChanged', ({ userId, permissions }) => {
-            console.log('UserChatPermissionsWasChanged event:', { userId, permissions })
             const updatedChat = this.currentChat
             if (permissions === 'readOnly') {
                 updatedChat.readOnlyUsers.push(userId)

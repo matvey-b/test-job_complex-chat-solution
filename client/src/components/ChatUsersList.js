@@ -39,7 +39,6 @@ class ChatUsersListItem extends React.Component {
     }
 
     render() {
-        console.log('user item props', this.props)
         const makePermissionsInfo = () => {
             if (!this.chatWasSelected) {
                 return null
@@ -79,8 +78,6 @@ class ChatUsersListItem extends React.Component {
                 </>
             )
         }
-
-        console.log('authStore', authStore.user, authStore.user.isAdmin)
 
         return (
             <ListGroup.Item
