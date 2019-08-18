@@ -25,6 +25,11 @@ services:
 
     redis:
         image: redis:5
+        ports:
+            - 63799:6379
+        command: redis-server --appendonly yes
+        volumes:
+            - .redis-db:/data
 
     nginx:
         image: nginx:latest

@@ -1,7 +1,9 @@
 node_modules
 .vscode
 .tmp
+
 .db/*
-!.db/.gitinit
+.redis-db/*
+!.git-keep
 
 server/config.js

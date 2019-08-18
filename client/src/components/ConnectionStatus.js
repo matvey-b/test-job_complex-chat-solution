@@ -1,8 +1,9 @@
 import React from 'react'
 import { observer } from 'mobx-react'
+import capitalize from 'lodash.capitalize'
 
 import { socket } from '../io'
-import users from '../stores/users'
+import authStore from '../stores/auth'
 
 export default observer(
     class ConnectionStatus extends React.Component {
@@ -27,7 +28,7 @@ export default observer(
         }
 
         render() {
-            const login = users.me && users.me.login
+            const login = authStore.user && capitalize(authStore.user.login)
             return (
                 <span>
                     {this.state.connected ? (
