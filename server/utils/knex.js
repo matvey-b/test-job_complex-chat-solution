@@ -1,7 +1,13 @@
 const knex = require('knex')
-const config = require('./config-loader')
 
-// note: это необязательно, т.к. конфиг уже скорее всего выгружен в process.env, но на всякий пожарный, на случай если где-то будет просто использоваться этот модуль
-config.load()
-
-module.exports = knex({ client: 'mysql', connection: process.env.DB })
+console.log('knex.js', process.env.MYSQL_HOST)
+module.exports = knex({
+    client: 'mysql',
+    connection: {
+        host: process.env.MYSQL_HOST,
+        user: process.env.MYSQL_USER,
+        password: process.env.MYSQL_PASSWORD,
+        port: process.env.MYSQL_PORT,
+        database: process.env.MYSQL_DATABASE,
+    },
+})

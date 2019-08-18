@@ -1,4 +1,7 @@
 const Redis = require('ioredis')
-const config = require('./config-loader')
 
-module.exports = new Redis({ ...config.load().redis })
+module.exports = new Redis({
+    host: process.env.REDIS_HOST,
+    port: process.env.REDIS_PORT,
+    db: process.env.REDIS_DB,
+})

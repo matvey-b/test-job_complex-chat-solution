@@ -3,9 +3,10 @@
 ### Простой способ развертки DEV окружения через docker-compose
 
 1. Поставить себе `docker` и `docker-compose`
-2. Скопировать конфиг бекенда `mv server/config.example.js server/config.js`
-3. Сделать `docker-compose up`
-4. После этого можно подключаться к `localhost:3000` и заходить под админом `{login: 'admin', password: '123321'}`
+2. Скопировать конфиг бекенда `mv server/example.env server/.env`
+3. Подготовить базу данных\запустить миграции `docker-compose up db_migrator`. При первом запуске может возникнуть ошибка `Error: connect ECONNREFUSED`. Её нужно проигнорировать и просто повторно перезапустить db_migrator через `docker-compose up db_migrator`. Вероятней всего ошибка появляется из-за того, что mysql контейнер при первом запуске занимается инициализацией базы и т.п. Нужно заставить docker-compose как-то подождать, пока mysql не выйдет в рабочее состояние. Это задачка на будущее.
+4. Сделать `docker-compose up`
+5. После этого можно подключаться к `localhost:3000` и заходить под админом `{login: 'admin', password: '123321'}`
 
 #### ЗАМЕЧАНИЯ
 
@@ -18,7 +19,7 @@
 
 1. `cd ./server`
 2. Подготовить базу mysql(v5.7) которую не жалко. Подготовить базу redis(v3.0.6).
-3. Сделать `mv config.example.js config.js`, заполнить `config.js`
+3. Сделать `mv example.env .env`, заполнить `.env`
 4. `npm i`
 5. `npm knex migrate:latest` - чтобы подготовить структуру базы и наполнить её тестовыми данными.
 6. `npm start`
