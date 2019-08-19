@@ -17,13 +17,13 @@ services:
             - mysql
             - db_migrator
         env_file: server/.env
-        command: 'scripts/wait-for-it.sh mysql:3306 -- npm start'
+        command: 'scripts/wait-for.sh mysql:3306 -- npm start'
 
     db_migrator:
         build: ./server
         volumes:
             - ./server:/usr/src/app
-        command: ./scripts/wait-for-it.sh mysql:3306 -- npx knex migrate:latest
+        command: ./scripts/wait-for.sh mysql:3306 -- npx knex migrate:latest
         depends_on:
             - mysql
         env_file: server/.env
