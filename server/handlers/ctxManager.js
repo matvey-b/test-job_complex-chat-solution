@@ -1,7 +1,9 @@
 const _ = require('lodash')
+const chalk = require('chalk')
 
 class SocketContextManager {
     constructor(socket) {
+        this.socket = socket
         this.user = null
         this.jwt = null
     }
@@ -9,13 +11,14 @@ class SocketContextManager {
     setSession({ user, jwt }) {
         this.user = user
         this.jwt = jwt
+        console.log(chalk.green.bold(`${this.user.login} was authenticated`))
     }
 
     get sessionId() {
         if (!this.user) {
             throw new Error(`Cannot create sessionId for not authenticated user`)
         }
-        return `${this.user.id}:${this.jwt.split('.')[2]}`
+        return `${this.user.id}:${this.socket.id}`
     }
 
     get isAdmin() {
