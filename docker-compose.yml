@@ -8,7 +8,18 @@ services:
         volumes:
             - ./client:/usr/src/app
 
-    api:
+    api_1:
+        build: ./server
+        volumes:
+            - ./server:/usr/src/app
+        depends_on:
+            - redis
+            - mysql
+            - db_migrator
+        env_file: server/.env
+        command: 'scripts/wait-for.sh mysql:3306 -- npm start'
+
+    api_2:
         build: ./server
         volumes:
             - ./server:/usr/src/app
@@ -40,11 +51,12 @@ services:
     nginx:
         image: nginx:latest
         ports:
-            - '8000:8000'
+            - '8000:80'
         volumes:
             - ./nginx.conf:/etc/nginx/nginx.conf
         depends_on:
-            - api
+            - api_1
+            - api_2
 
     mysql:
         image: mysql:5

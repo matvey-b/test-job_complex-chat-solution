@@ -97,26 +97,7 @@ cleanUpInRooms => () => {
 class AuthHandlers extends BaseHandler {
     constructor(socket) {
         super(socket)
-        if (!this.socket.ctx) {
-            this.socket.ctx = new SocketContext(socket)
-        }
         this.setDestroyNotAuthorizedSocketTimeout(TIME_FOR_AUTH)
-
-        this.socket.use((packet, next) => {
-            // fixme: этому тут не место
-            if (!socket.eventNames().includes(_.head(packet))) {
-                console.log(chalk.red(`Gotten unknown message on socket: `), packet)
-                if (_.isFunction(_.last(packet))) {
-                    return _.last(packet)({
-                        name: 'Error',
-                        code: 'UNSUPPORTED_RPC_METHOD',
-                        message: `Server not supports '${_.head(packet)}' rpc method`,
-                    })
-                }
-                return next(new Error(`Message '${_.head(packet)} is not supported by server`))
-            }
-            next()
-        })
     }
 
     /**
@@ -131,14 +112,14 @@ class AuthHandlers extends BaseHandler {
 
     // fixme: за это должен отвечать SessionManager
     async deleteSessionActivityEntity() {
-        if (this.socket.ctx.user) {
-            await redis.zrem(REDIS_SESSIONS_ACTIVITY_SET, this.socket.ctx.sessionId)
+        if (this.ctx.user) {
+            await redis.zrem(REDIS_SESSIONS_ACTIVITY_SET, this.ctx.sessionId)
         }
     }
 
     // fixme: за это должен отвечать SessionManager
     async upsertSessionActivityEntity() {
-        await redis.zadd(REDIS_SESSIONS_ACTIVITY_SET, dateTime.asUnixTime(), this.socket.ctx.sessionId)
+        await redis.zadd(REDIS_SESSIONS_ACTIVITY_SET, dateTime.asUnixTime(), this.ctx.sessionId)
     }
 
     clearTimers() {
@@ -152,33 +133,33 @@ class AuthHandlers extends BaseHandler {
         this.socket.on('disconnect', async () => {
             this.clearTimers()
             // fixme: этим тоже должен заниматься SessionManager, т.к. слишком много обязанностей возложено на AuthHandler
-            if (this.socket.ctx.user) {
+            if (this.ctx.user) {
                 await this.deleteSessionActivityEntity()
             }
-            if (this.connectedRooms && this.connectedRooms.size) {
-                await Promise.all([...this.connectedRooms].map(this.leaveRoom.bind(this)))
+            if (this.roomsManager.connectedRooms && this.roomsManager.connectedRooms.size) {
+                await Promise.all([...this.roomsManager.connectedRooms].map(this.leaveRoom.bind(this)))
             }
         })
     }
 
     async assignUserToSocket({ user, jwt }) {
-        if (_.get(this.socket.ctx, 'user.id') !== (user.id || user)) {
+        if (_.get(this.ctx, 'user.id') !== (user.id || user)) {
             if (_.isObject(user)) {
-                this.socket.ctx.setSession({ user, jwt })
+                this.ctx.setSession({ user, jwt })
             } else {
                 const res = await knex('users')
                     .first('*')
                     .where({ id: user })
-                this.socket.ctx.setSession({ user: res, jwt })
+                this.ctx.setSession({ user: res, jwt })
             }
             await this.upsertSessionActivityEntity()
             this.updateSessionActivityTimer = setInterval(
                 () => this.upsertSessionActivityEntity(),
                 SESSION_ACTIVITY_UPDATE_INTERVAL,
             )
-            console.log(`${this.socket.ctx.user.login} was authenticated`)
+            console.log(`${this.ctx.user.login} was authenticated`)
         }
-        return this.socket.ctx.user
+        return this.ctx.user
     }
 
     // попросить клиента, чтобы он обновил просроченный токен
@@ -224,7 +205,7 @@ class AuthHandlers extends BaseHandler {
         const token = await auth.sign(user)
         await this.assignUserToSocket({ user, jwt: token })
         this.scheduleNotificationAboutTokenExpiration(token)
-        return { user: this.socket.ctx.user, token }
+        return { user: this.ctx.user, token }
     }
 
     async rpcSignIn({ login, password }) {
@@ -243,7 +224,7 @@ class AuthHandlers extends BaseHandler {
         const token = await auth.sign(user)
         await this.assignUserToSocket({ user, jwt: token })
         this.scheduleNotificationAboutTokenExpiration(token)
-        return { user: this.socket.ctx.user, token }
+        return { user: this.ctx.user, token }
     }
 
     async rpcReissueToken(token) {
@@ -254,14 +235,14 @@ class AuthHandlers extends BaseHandler {
             throw this.makeRpcError({ code: 'JWT_EXPIRED', message: 'Invalid token provided' })
         }
 
-        const newToken = await auth.sign(this.socket.ctx.user)
+        const newToken = await auth.sign(this.ctx.user)
         this.scheduleNotificationAboutTokenExpiration(newToken)
 
         return newToken
     }
 
     async rpcAssignSession(token) {
-        if (!this.socket.ctx.user) {
+        if (!this.ctx.user) {
             const decodedToken = await auth.verify(token).catch(() => null)
             // fixme: нужно разделить ошибки JWT_EXPIRED и INVALID_TOKEN_SIGN
             if (!decodedToken) {
@@ -272,38 +253,7 @@ class AuthHandlers extends BaseHandler {
             this.scheduleNotificationAboutTokenExpiration(decodedToken)
         }
 
-        return this.socket.ctx.user
-    }
-}
-
-class SocketContext {
-    constructor(socket) {
-        this.user = null
-        this.jwt = null
-    }
-
-    setSession({ user, jwt }) {
-        this.user = user
-        this.jwt = jwt
-    }
-
-    get sessionId() {
-        if (!this.user) {
-            throw new Error(`Cannot create sessionId for not authenticated user`)
-        }
-        return `${this.user.id}:${this.jwt.split('.')[2]}`
-    }
-
-    get isAdmin() {
-        return this.user.isAdmin
-    }
-
-    get isAuthenticated() {
-        return Boolean(this.user)
-    }
-
-    get publicUserData() {
-        return _.pick(this.user, 'id', 'login', 'isAdmin')
+        return this.ctx.user
     }
 }
 

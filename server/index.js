@@ -5,6 +5,9 @@ const io = require('socket.io')(httpServer)
 const authHandler = require('./handlers/auth')
 const chatsHandlers = require('./handlers/chats')
 const usersHandlers = require('./handlers/users')
+const adapter = require('socket.io-redis')
+
+io.adapter(adapter({ host: process.env.REDIS_HOST, port: process.env.REDIS_PORT }))
 
 console.log(`Starting server...`)
 
@@ -24,6 +27,6 @@ io.on('connection', async function(socket) {
     usersHandlers.attach(socket)
 })
 
-httpServer.listen({ host: '0.0.0.0', port: process.env.HTTP_PORT }, () =>
+httpServer.listen({ host: '0.0.0.0', port: process.env.API_INTERNAL_HTTP_PORT }, () =>
     console.log(`Server listening on ${JSON.stringify(httpServer.address())}...`),
 )

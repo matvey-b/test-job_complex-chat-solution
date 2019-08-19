@@ -1,17 +1,74 @@
 const _ = require('lodash')
 const chalk = require('chalk')
-const redis = require('../utils/redis')
-const dateTime = require('../utils/date-time')
+const RoomsManager = require('./roomsManager')
 const validators = require('../utils/validators')
 const serializeError = require('serialize-error')
+const SocketContextManager = require('./ctxManager')
 
+/* 
+Базовый класс "обработчика" сокета.
+Используется как основа для остальных классов обработчиков.
+
+Добавляет возможность делать rpc вызовы и прочие базовые вещи на сокете. Также отвечает за подключение обработчиков событий определенных в дочерних классах на сокет.
+
+ВНИМАНИЕ!
+Этот класс можно использовать только как абстрактный. Он не должен производить никаких изменений на сокете, кроме определенных на дочернем классе.
+Например, если повешать на сокет в конструкторе этого класса какой-нибудь обработчик, то он будет подключен столько раз, сколько в системе определено дочерних классов.
+*/
 class BaseHandler {
     constructor(socket) {
         // note: беру за сервера namespace, т.к. socket.io создает "виртуальный" сокет в рамках неймспеса, т.е. для разных неймспейсов создаются свои независимые сокеты, даже если это одно соединение уровня вебсокетов
         this.server = socket.nsp
         this.socket = socket
+
+        if (!this.ctx) {
+            this.ctx = new SocketContextManager(socket)
+        }
+        if (!this.roomsManager) {
+            this.roomsManager = new RoomsManager(this.socket)
+        }
+
         this.assignEventListeners()
         this.assignRpcCalls()
+
+        if (!this.socket.rpcCallsValidatorHasBeenSet) {
+            this.socket.rpcCallsValidatorHasBeenSet = true
+            this.socket.use((packet, next) => {
+                if (!socket.eventNames().includes(_.head(packet))) {
+                    console.log(chalk.red(`Gotten unknown message on socket: `), packet)
+                    if (_.isFunction(_.last(packet))) {
+                        return _.last(packet)({
+                            name: 'Error',
+                            code: 'UNSUPPORTED_RPC_METHOD',
+                            message: `Server not supports '${_.head(packet)}' rpc method`,
+                        })
+                    }
+                    return next(new Error(`Message '${_.head(packet)} is not supported by server`))
+                }
+                next()
+            })
+        }
+    }
+
+    /**
+     * Ниже определены геттеры(где есть @type декларация) и сеттеры в первую очередь для того, чтобы работал автокомплит =)
+     */
+    /** @type {RoomsManager} */
+    get roomsManager() {
+        return this.socket.roomsManager
+    }
+
+    set roomsManager(roomsManager) {
+        this.socket.roomsManager = roomsManager
+    }
+
+    set ctx(context) {
+        this.socket.ctx = context
+    }
+
+    /** @type {SocketContextManager} */
+    get ctx() {
+        return this.socket.ctx
     }
 
     assignEventListeners() {
@@ -28,97 +85,9 @@ class BaseHandler {
             .forEach(rpcCallName => this.socket.on(rpcCallName, this.handleRpcCall(rpcCallName, this[rpcCallName])))
     }
 
-    async getUsersIdsConnectedToRoom(roomName) {
-        return redis.zrange(`room:${roomName}:members`, 0, -1).then(res =>
-            _(res)
-                .compact()
-                .map(val =>
-                    _(val)
-                        .split(':')
-                        .head(),
-                )
-                .uniq()
-                .value(),
-        )
-    }
-
     validateAuthorization() {
-        if (!this.socket.ctx.isAuthenticated) {
+        if (!this.ctx.isAuthenticated) {
             throw this.makeRpcError({ code: 'UNAUTHORIZED', message: 'Authorization required' })
-        }
-    }
-
-    async joinToRoom(roomName) {
-        await Promise.all([
-            new Promise((resolve, reject) => this.socket.join(roomName, err => (err ? reject(err) : resolve()))),
-            Promise.resolve().then(async () => {
-                const wasAdded = await redis.zadd(
-                    `room:${roomName}:members`,
-                    dateTime.asUnixTime(),
-                    this.socket.ctx.sessionId,
-                )
-                if (wasAdded) {
-                    // если клиент ранее не регистрировался в комнате, то продолжаем флоу регистрации в комнате
-                    await redis
-                        .multi()
-                        .zincrby(`rooms`, 1, roomName)
-                        .sadd(`session:${this.socket.ctx.sessionId}:rooms`, roomName)
-                        .exec()
-                        .then(res => {
-                            // fixme: тут какая-то ерунда творится с ioredis..
-                            // во первых, в exec первым аргументом всегда прилетает null, даже если ошибка была в запросе
-                            // во вторых, если была ошибка в одном из запросов, то это не мешает исполнится другому..
-                            // это как-то не вписывается в мое понимание транзакций.. Нужно разбираться
-                            const errors = _(res)
-                                .flatten()
-                                .filter(val => val instanceof Error)
-                                .value()
-                            if (errors.length) {
-                                throw errors[0]
-                            }
-                        })
-                }
-            }),
-        ])
-        if (!this.connectedRooms) {
-            this.connectedRooms = new Set()
-        }
-        this.connectedRooms.add(roomName)
-    }
-
-    /* 
-    fixme:
-    Как я писал ранее, нужно реализовать чистку чатов от потерянных сессий, на случай если бекенд будет убиваться не аккуратно.
-    */
-    async leaveRoom(roomName) {
-        await Promise.all([
-            new Promise((resolve, reject) => this.socket.leave(roomName, err => (err ? reject(err) : resolve()))),
-            Promise.resolve().then(async () => {
-                const wasDeleted = await redis.zrem(`room:${roomName}:members`, this.socket.ctx.sessionId)
-                if (wasDeleted) {
-                    redis
-                        .multi()
-                        .zincrby(`rooms`, -1, roomName)
-                        .srem(`session:${this.socket.ctx.sessionId}:rooms`, roomName)
-                        .exec()
-                        .then(res => {
-                            // fixme: тут какая-то ерунда творится с ioredis..
-                            // во первых, в exec первым аргументом всегда прилетает null, даже если ошибка была в запросе
-                            // во вторых, если была ошибка в одном из запросов, то это не мешает исполнится другому..
-                            // это как-то не вписывается в мое понимание транзакций.. Нужно разбираться
-                            const errors = _(res)
-                                .flatten()
-                                .filter(val => val instanceof Error)
-                                .value()
-                            if (errors.length) {
-                                throw errors[0]
-                            }
-                        })
-                }
-            }),
-        ])
-        if (this.connectedRooms) {
-            this.connectedRooms.delete(roomName)
         }
     }
 

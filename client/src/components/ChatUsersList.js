@@ -74,7 +74,8 @@ class ChatUsersListItem extends React.Component {
 
             return (
                 <>
-                    {capitalize(this.props.user.login)} {makePermissionsInfo()} {makeActionInfo()}
+                    {this.isMe ? <u><b>{capitalize(this.props.user.login)}</b></u> : capitalize(this.props.user.login)}{' '}
+                    {makePermissionsInfo()} {makeActionInfo()}
                 </>
             )
         }

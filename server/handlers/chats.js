@@ -28,7 +28,7 @@ class ChatsHandlers extends BaseHandler {
     }
 
     async rpcGetOnlineUsersOfChat(chatId) {
-        return this.getUsersIdsConnectedToRoom(this.makeChatRoomName(chatId))
+        return this.roomsManager.getUsersIdsConnectedToRoom(this.makeChatRoomName(chatId))
     }
 
     makeChatReadOnlyUsersRedisKey(chatId) {
@@ -37,7 +37,7 @@ class ChatsHandlers extends BaseHandler {
 
     async rpcChangeChatPermissions({ chatId, permissions, userId }) {
         this.validateAuthorization()
-        if (!this.socket.ctx.user.isAdmin) {
+        if (!this.ctx.user.isAdmin) {
             throw this.makeRpcError({ code: 'NOT_ENOUGH_RIGHTS', message: 'Only admins can do that action' })
         }
         if (
@@ -118,15 +118,15 @@ class ChatsHandlers extends BaseHandler {
 
     async joinToChat(chatId) {
         const roomName = this.makeChatRoomName(chatId)
-        await this.joinToRoom(roomName).then(() => (this.currentChatId = chatId))
-        this.socket.to(roomName).broadcast.emit('UserWasJoinedToChat', this.socket.ctx.user.id)
+        await this.roomsManager.joinToRoom(roomName).then(() => (this.currentChatId = chatId))
+        this.socket.to(roomName).broadcast.emit('UserWasJoinedToChat', this.ctx.user.id)
     }
 
     async leaveChat(chatId) {
         if (chatId) {
             const roomName = this.makeChatRoomName(chatId)
-            await this.leaveRoom(roomName)
-            this.socket.to(roomName).emit('UserWasLeftTheChat', this.socket.ctx.user.id)
+            await this.roomsManager.leaveRoom(roomName)
+            this.socket.to(roomName).emit('UserWasLeftTheChat', this.ctx.user.id)
         }
     }
 
@@ -140,13 +140,13 @@ class ChatsHandlers extends BaseHandler {
 
     async rpcSendChatMessage({ text, chatId }) {
         this.validateAuthorization()
-        if (await redis.sismember(this.makeChatReadOnlyUsersRedisKey(chatId), this.socket.ctx.user.id)) {
+        if (await redis.sismember(this.makeChatReadOnlyUsersRedisKey(chatId), this.ctx.user.id)) {
             throw this.makeRpcError({
                 code: 'YOU_HAVE_READ_ONLY_RIGHTS',
                 message: 'You have not permissions for send new messages into chat',
             })
         }
-        const msg = { text, chatId, createdAt: new Date(), authorId: this.socket.ctx.user.id }
+        const msg = { text, chatId, createdAt: new Date(), authorId: this.ctx.user.id }
         await knex('chat_messages')
             .insert(msg)
             .then(([id]) => Object.assign(msg, { id }))
