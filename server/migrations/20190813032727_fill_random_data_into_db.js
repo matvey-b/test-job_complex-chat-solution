@@ -4,7 +4,7 @@ const _ = require('lodash')
 const knex = require('../utils/knex')
 const chance = require('../tests/chance')
 
-const users = _.times(10, () => chance.user())
+const users = _.uniqBy(_.times(10, () => chance.user()), 'login')
 const chats = users.map(({ id }) => chance.chat({ ownerId: id }))
 let createdAt = Date.now()
 const messages = _(new Array(300).fill(null))

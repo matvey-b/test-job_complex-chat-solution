@@ -15,7 +15,6 @@ services:
         depends_on:
             - redis
             - mysql
-            - db_migrator
         env_file: server/.env
         command: sh -c "./scripts/wait-for.sh mysql:3306 -t 30 -- echo Mysql is ready && npm start"
 
@@ -26,18 +25,8 @@ services:
         depends_on:
             - redis
             - mysql
-            - db_migrator
         env_file: server/.env
         command: sh -c "./scripts/wait-for.sh mysql:3306 -t 30 -- echo Mysql is ready && npm start"
-
-    db_migrator:
-        build: ./server
-        volumes:
-            - ./server:/usr/src/app
-        command: sh -c "./scripts/wait-for.sh mysql:3306 -t 30 -- echo Mysql is ready && npx knex migrate:latest"
-        depends_on:
-            - mysql
-        env_file: server/.env
 
     redis:
         image: redis:5

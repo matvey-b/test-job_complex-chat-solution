@@ -1,5 +1,5 @@
-const knex = require('../utils/knex')
 const BaseHandler = require('./base')
+const knex = require('../utils/knex')
 const redis = require('../utils/redis')
 
 const attach = socket => {
