@@ -4,6 +4,7 @@ const RoomsManager = require('./roomsManager')
 const validators = require('../utils/validators')
 const serializeError = require('serialize-error')
 const SocketContextManager = require('./ctxManager')
+const { readdir } = require('fs').promises
 
 /* 
 Базовый класс "обработчика" сокета.
@@ -76,6 +77,11 @@ class BaseHandler {
     }
 
     /**
+     * Абстрактный метод обработки логаута пользователя
+     */
+    async handleLogout() {}
+
+    /**
      * Слушать все rpc вызовы на сокете
      * Все методы которые начинаются на rpc, например rpcSignUp, это rpc вызовы которые могут делать клиенты
      */
@@ -144,6 +150,12 @@ class BaseHandler {
             }
         }
     }
+
+    static async attachHandlers(socket) {
+        const handlers = BaseHandler.loadedHandlers || (BaseHandler.loadedHandlers = await loadHandlers())
+        handlers.forEach(Handler => new Handler(socket))
+        socket.handlers = handlers
+    }
 }
 
 class RcpError extends Error {
@@ -159,6 +171,12 @@ class RcpError extends Error {
             console.log(`INTERNAL_SERVER_ERROR. Reason: `, reason)
         }
     }
+}
+
+const loadHandlers = async () => {
+    const fileNames = await readdir(__dirname).then(items => items.filter(fName => fName !== 'base'))
+    const modules = fileNames.map(fName => require(`./${fName}`))
+    return modules.filter(module => module.prototype instanceof BaseHandler)
 }
 
 module.exports = BaseHandler

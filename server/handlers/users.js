@@ -1,10 +1,6 @@
 const knex = require('../utils/knex')
 const BaseHandler = require('./base')
 
-const attach = socket => {
-    socket.usersHandlers = new UsersHandlers(socket)
-}
-
 class UsersHandlers extends BaseHandler {
     /**
      * Использовать для "догрузки" пользователей.
@@ -22,4 +18,4 @@ class UsersHandlers extends BaseHandler {
     }
 }
 
-module.exports = { attach }
+module.exports = UsersHandlers

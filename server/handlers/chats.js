@@ -2,10 +2,6 @@ const BaseHandler = require('./base')
 const knex = require('../utils/knex')
 const redis = require('../utils/redis')
 
-const attach = socket => {
-    socket.chatsHandlers = new ChatsHandlers(socket)
-}
-
 /* 
 Участие(participation) в чате выражается только в том, что клиент в данный момент слушает на нем "socket.io сообщения" или нет, т.е. есть ли коннекшн и связь с chat room.
 
@@ -25,6 +21,10 @@ class ChatsHandlers extends BaseHandler {
 
     assignEventListeners() {
         this.socket.on('disconnect', async () => this.leaveChat(this.currentChatId))
+    }
+
+    async handleLogout() {
+        await this.leaveChat(this.currentChatId)
     }
 
     async rpcGetOnlineUsersOfChat(chatId) {
@@ -155,4 +155,4 @@ class ChatsHandlers extends BaseHandler {
     }
 }
 
-module.exports = { attach }
+module.exports = ChatsHandlers

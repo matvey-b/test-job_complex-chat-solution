@@ -11,9 +11,6 @@ const TIME_TO_REFRESH_TOKEN = 60 * 1000 // 60 сек
 
 const SESSION_ACTIVITY_UPDATE_INTERVAL = 60 * 2 * 1000
 
-const attach = socket => {
-    socket.authHandlers = new AuthHandlers(socket)
-}
 /*
 Клиент может подключиться к бекенду без аутентификации. Но если он не сделает assignSession в течение TIME_FOR_AUTH, то сокет будет принудительно отключен.
 Аутентификация клиента основана на JWT. Для того, чтобы получить токен, нужно сделать вызовы signUp(регистрация) или signIn(аутентификация).
@@ -68,13 +65,10 @@ class AuthHandlers extends BaseHandler {
             if (this.ctx.user) {
                 await this.deleteSessionActivityEntity()
             }
-            if (this.roomsManager.connectedRooms && this.roomsManager.connectedRooms.size) {
-                await Promise.all([...this.roomsManager.connectedRooms].map(this.leaveRoom.bind(this)))
-            }
         })
     }
 
-    async assignUserToSocket({ user, jwt }) {
+    async authUserOnSocket({ user, jwt }) {
         if (_.get(this.ctx, 'user.id') !== (user.id || user)) {
             if (_.isObject(user)) {
                 this.ctx.setSession({ user, jwt })
@@ -91,6 +85,12 @@ class AuthHandlers extends BaseHandler {
             )
         }
         return this.ctx.user
+    }
+
+    async dropAuthFromSocket() {
+        this.ctx.dropSession()
+        this.clearTimers()
+        this.setDestroyNotAuthorizedSocketTimeout(TIME_FOR_AUTH)
     }
 
     // попросить клиента, чтобы он обновил просроченный токен
@@ -134,7 +134,7 @@ class AuthHandlers extends BaseHandler {
         const user = { id: uuid(), login }
         await knex('users').insert({ ...user, password: auth.hashPassword(password), createdAt: new Date() })
         const token = await auth.sign(user)
-        await this.assignUserToSocket({ user, jwt: token })
+        await this.authUserOnSocket({ user, jwt: token })
         this.scheduleNotificationAboutTokenExpiration(token)
         return { user: this.ctx.user, token }
     }
@@ -153,7 +153,7 @@ class AuthHandlers extends BaseHandler {
             throw this.makeRpcError({ code: 'INVALID_PASSWORD', message: 'Entered incorrect password or login' })
         }
         const token = await auth.sign(user)
-        await this.assignUserToSocket({ user, jwt: token })
+        await this.authUserOnSocket({ user, jwt: token })
         this.scheduleNotificationAboutTokenExpiration(token)
         return { user: this.ctx.user, token }
     }
@@ -172,7 +172,7 @@ class AuthHandlers extends BaseHandler {
         return newToken
     }
 
-    async rpcAssignSession(token) {
+    async rpcAuthViaJwt(token) {
         if (!this.ctx.user) {
             const decodedToken = await auth.verify(token).catch(() => null)
             // fixme: нужно разделить ошибки JWT_EXPIRED и INVALID_TOKEN_SIGN
@@ -180,12 +180,18 @@ class AuthHandlers extends BaseHandler {
                 throw this.makeRpcError({ code: 'JWT_EXPIRED', message: 'Invalid token provided' })
             }
 
-            await this.assignUserToSocket({ user: decodedToken.userId, jwt: token })
+            await this.authUserOnSocket({ user: decodedToken.userId, jwt: token })
             this.scheduleNotificationAboutTokenExpiration(decodedToken)
         }
 
         return this.ctx.user
     }
+
+    async rpcLogout() {
+        this.validateAuthorization()
+        await Promise.all(this.socket.handlers.map(h => h.handleLogout()))
+        await this.dropAuthFromSocket()
+    }
 }
 
-module.exports = { attach }
+module.exports = AuthHandlers

@@ -2,9 +2,7 @@ require('dotenv').config()
 const _ = require('lodash')
 const httpServer = require('http').createServer()
 const io = require('socket.io')(httpServer)
-const authHandler = require('./handlers/auth')
-const chatsHandlers = require('./handlers/chats')
-const usersHandlers = require('./handlers/users')
+const BaseHandler = require('./handlers/base')
 const adapter = require('socket.io-redis')
 
 io.adapter(adapter({ host: process.env.REDIS_HOST, port: process.env.REDIS_PORT }))
@@ -22,9 +20,7 @@ io.on('connection', async function(socket) {
             )}. Count of connected sockets: ${Object.keys(io.sockets.sockets).length}`,
         )
     })
-    authHandler.attach(socket)
-    chatsHandlers.attach(socket)
-    usersHandlers.attach(socket)
+    await BaseHandler.attachHandlers(socket)
 })
 
 httpServer.listen({ host: '0.0.0.0', port: process.env.API_INTERNAL_HTTP_PORT }, () =>

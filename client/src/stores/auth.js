@@ -32,7 +32,7 @@ class AuthStore {
         this.isLoading = false
         if (res.name === 'Error') {
             // fixme: вот это костыль. Для некоторых методов не нужно показывать алерт ошибки. Видимо всетаки не стоит централизованно выставлять ошибку.
-            if (method !== 'rpcAssignSession') {
+            if (method !== 'rpcAuthViaJwt') {
                 this.error = { code: res.code, message: res.message }
             }
             return null
@@ -62,7 +62,7 @@ class AuthStore {
      */
     async restoreSession() {
         if (this.jwt) {
-            const res = await this.makeRpcCall('rpcAssignSession', this.jwt)
+            const res = await this.makeRpcCall('rpcAuthViaJwt', this.jwt)
             if (!res) {
                 this.isAuthenticated = false
             } else {

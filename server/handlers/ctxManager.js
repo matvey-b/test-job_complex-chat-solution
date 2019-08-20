@@ -14,6 +14,11 @@ class SocketContextManager {
         console.log(chalk.green.bold(`${this.user.login} was authenticated`))
     }
 
+    dropSession() {
+        this.user = null
+        this.jwt = null
+    }
+
     get sessionId() {
         if (!this.user) {
             throw new Error(`Cannot create sessionId for not authenticated user`)
@@ -22,7 +27,7 @@ class SocketContextManager {
     }
 
     get isAdmin() {
-        return this.user.isAdmin
+        return this.isAuthenticated && this.user.isAdmin
     }
 
     get isAuthenticated() {
