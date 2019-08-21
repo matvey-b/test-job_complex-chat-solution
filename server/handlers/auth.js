@@ -191,6 +191,7 @@ class AuthHandlers extends BaseHandler {
         this.validateAuthorization()
         await Promise.all(this.socket.handlers.map(h => h.handleLogout()))
         await this.dropAuthFromSocket()
+        return true
     }
 }
 

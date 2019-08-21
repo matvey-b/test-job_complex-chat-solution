@@ -25,6 +25,13 @@ class AuthStore {
         this.jwt = token
     }
 
+    dropSession() {
+        localStorage.removeItem('jwt')
+        localStorage.removeItem('user')
+        this.user = null
+        this.jwt = null
+    }
+
     async makeRpcCall(method, ...args) {
         this.error = null
         this.isLoading = true
@@ -53,6 +60,17 @@ class AuthStore {
         if (auth) {
             this.saveSession(auth)
             this.isAuthenticated = true
+        }
+    }
+
+    async logout() {
+        if (this.isAuthenticated) {
+            const res = await this.makeRpcCall('rpcLogout')
+            if (res === true) {
+                this.dropSession()
+                this.isAuthenticated = false
+                this.isReconnected = false
+            }
         }
     }
 

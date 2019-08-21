@@ -152,9 +152,9 @@ class BaseHandler {
     }
 
     static async attachHandlers(socket) {
-        const handlers = BaseHandler.loadedHandlers || (BaseHandler.loadedHandlers = await loadHandlers())
-        handlers.forEach(Handler => new Handler(socket))
-        socket.handlers = handlers
+        const handlersConstructors =
+            BaseHandler.loadedHandlersConstructors || (BaseHandler.loadedHandlersConstructors = await loadHandlers())
+        socket.handlers = handlersConstructors.map(Handler => new Handler(socket))
     }
 }
 
