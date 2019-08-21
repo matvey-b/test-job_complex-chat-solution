@@ -1,6 +1,7 @@
 import React from 'react'
 import capitalize from 'lodash.capitalize'
 import { Row, Col, Spinner, Modal, Container, Form, Button, Alert } from 'react-bootstrap'
+import chatsStore from '../stores/chats'
 
 export default class MessagesList extends React.Component {
     constructor(props) {
@@ -66,6 +67,19 @@ export default class MessagesList extends React.Component {
             ))
             return (items.length && items) || emptyList
         }
+        const makeTypingUsersList = () => {
+            if (this.props.typingUsernames.length) {
+                const usernames = chatsStore.typingUsernames.map(capitalize).join(', ')
+                return (
+                    <Row style={{ paddingBottom: '0.5em', fontSize: '0.8em' }}>
+                        <Col>
+                            <span style={{ fontWeight: 'bold' }}>{usernames}</span> is typing...
+                        </Col>
+                    </Row>
+                )
+            }
+            return null
+        }
         return (
             <div>
                 <h5 align="center">Messages:</h5>
@@ -76,12 +90,14 @@ export default class MessagesList extends React.Component {
                     </Modal.Body>
                     <Modal.Footer size="lg" ref={this.inputMsgRef}>
                         <Form style={{ width: '100%' }} onSubmit={this.sendMessage}>
+                            {makeTypingUsersList()}
                             <Row>
                                 <Col>
                                     <Form.Control
                                         type="text"
                                         placeholder="Enter message..."
                                         ref={this.messageText}
+                                        onChange={() => chatsStore.sendImTypingInChatEvent()}
                                         disabled={!this.props.currentChat || !this.props.haveWritePerms}
                                     />
                                 </Col>

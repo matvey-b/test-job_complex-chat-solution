@@ -3,6 +3,8 @@ import usersStore from './users'
 import authStore from './auth'
 import { makeRpcCall, socket } from '../io'
 
+const USER_IS_TYPING_TIMEOUT = 4000
+
 class ChatsStore {
     chatsMap = new Map()
     // note: все время сортированы по убыванию и отсутствуют дубликаты
@@ -10,6 +12,7 @@ class ChatsStore {
     storedMessagesIds = new Set()
     isLoading = false
     currentChatId = localStorage.getItem('currentChatId') || null
+    typingUsersTimers = new Map()
 
     constructor() {
         socket.on('NewChatMessage', msg => this.appendNotStoredMessages([msg]))
@@ -22,6 +25,35 @@ class ChatsStore {
             }
             this.upsertChatsToStore([updatedChat])
         })
+        socket.on('ChatUserIsTyping', userId => this.appendTypingUser(userId))
+    }
+
+    get typingUsernames() {
+        return [...this.typingUsersTimers.keys()].reduce((acc, id) => {
+            const user = usersStore.users.find(u => u.id === id)
+            if (user) {
+                return acc.concat(user.login)
+            }
+            return acc
+        }, [])
+    }
+
+    appendTypingUser(userId) {
+        const existedTimer = this.typingUsersTimers.get(userId)
+        if (existedTimer) {
+            clearTimeout(existedTimer)
+        }
+        const newTimer = setTimeout(() => this.typingUsersTimers.delete(userId), USER_IS_TYPING_TIMEOUT)
+        this.typingUsersTimers.set(userId, newTimer)
+    }
+
+    async sendImTypingInChatEvent() {
+        if (this.imTypingInChatAlreadySent) {
+            return
+        }
+        this.imTypingInChatAlreadySent = true
+        socket.emit('ImTypingInChat')
+        setTimeout(() => (this.imTypingInChatAlreadySent = false), USER_IS_TYPING_TIMEOUT - 300)
     }
 
     get haveWritePerms() {
@@ -45,7 +77,7 @@ class ChatsStore {
         const result = messages.map(msg => ({
             ...msg,
             author: users.find(u => u.id === msg.authorId),
-            isMy: msg.authorId === authStore.user.id,
+            isMy: msg.authorId === authStore.user && authStore.user.id,
         }))
         if (result.length) {
             const lastMsg = result.pop()
@@ -146,6 +178,8 @@ class ChatsStore {
 decorate(ChatsStore, {
     chatsMap: observable,
     chats: computed,
+    typingUsernames: computed,
+    typingUsersTimers: observable,
     haveWritePerms: computed,
     currentChat: computed,
     chatsMessages: observable,

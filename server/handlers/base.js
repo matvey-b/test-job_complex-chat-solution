@@ -44,7 +44,7 @@ class BaseHandler {
                             message: `Server not supports '${_.head(packet)}' rpc method`,
                         })
                     }
-                    return next(new Error(`Message '${_.head(packet)} is not supported by server`))
+                    return next(new Error(`Message\\event '${_.head(packet)}' is not supported by server`))
                 }
                 next()
             })

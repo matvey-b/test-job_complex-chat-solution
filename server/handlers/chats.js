@@ -21,6 +21,13 @@ class ChatsHandlers extends BaseHandler {
 
     assignEventListeners() {
         this.socket.on('disconnect', async () => this.leaveChat(this.currentChatId))
+        this.socket.on('ImTypingInChat', () => this.broadcastChatUserIsTyping())
+    }
+
+    broadcastChatUserIsTyping() {
+        if (this.ctx.isAuthenticated && this.currentChatId) {
+            this.socket.to(this.makeChatRoomName(this.currentChatId)).emit('ChatUserIsTyping', this.ctx.user.id)
+        }
     }
 
     async handleLogout() {

@@ -47,6 +47,7 @@ export default observer(
                                 sendMessageHandler={chatsStore.sendMessage.bind(chatsStore)}
                                 currentChat={chatsStore.currentChat}
                                 haveWritePerms={chatsStore.haveWritePerms}
+                                typingUsernames={chatsStore.typingUsernames}
                             />
                         </Col>
                         <Col md={2}>
