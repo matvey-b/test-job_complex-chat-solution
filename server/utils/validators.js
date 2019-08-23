@@ -86,4 +86,5 @@ module.exports = {
             .allow('readWrite', 'readOnly')
             .required(),
     }),
+    rpcGetOnlineUsersCountInputSchema: Joi.array().items(chatIdSchema.required()),
 }

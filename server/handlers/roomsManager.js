@@ -17,6 +17,21 @@ class RoomsManager {
         )
     }
 
+    getAllActiveRooms(regexp) {
+        return new Promise((resolve, reject) =>
+            this.server.of('/').adapter.allRooms((err, rooms) => {
+                if (err) {
+                    return reject(err)
+                }
+                if (regexp) {
+                    regexp = regexp instanceof RegExp ? regexp : new RegExp(regexp)
+                    return resolve(rooms.filter(roomName => regexp.test(roomName)))
+                }
+                return resolve(rooms)
+            }),
+        )
+    }
+
     async getUsersIdsConnectedToRoom(roomName) {
         return this.getClientsConnectedToRoom(roomName).then(socketIds => redis.mget(socketIds).then(_.compact))
     }

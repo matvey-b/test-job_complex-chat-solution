@@ -35,6 +35,11 @@ class ChatsHandlers extends BaseHandler {
     }
 
     async rpcGetOnlineUsersOfChat(chatId) {
+        await this.validateAuthorization()
+        return this.getOnlineUsersOfChat(chatId)
+    }
+
+    async getOnlineUsersOfChat(chatId) {
         return this.roomsManager.getUsersIdsConnectedToRoom(this.makeChatRoomName(chatId))
     }
 
@@ -119,6 +124,10 @@ class ChatsHandlers extends BaseHandler {
         return `chat:${id}`
     }
 
+    extractChatIdFromRoomName(roomName) {
+        return roomName.slice(':')[1]
+    }
+
     alreadyConnectedTo(chatId) {
         return this.currentChatId === chatId
     }
@@ -127,6 +136,7 @@ class ChatsHandlers extends BaseHandler {
         const roomName = this.makeChatRoomName(chatId)
         await this.roomsManager.joinToRoom(roomName).then(() => (this.currentChatId = chatId))
         this.socket.to(roomName).broadcast.emit('UserWasJoinedToChat', this.ctx.user.id)
+        this.server.emit('CountOfOnlineUsersWasUpdated', await this.getOnlineUsersCount([chatId]))
     }
 
     async leaveChat(chatId) {
@@ -134,6 +144,7 @@ class ChatsHandlers extends BaseHandler {
             const roomName = this.makeChatRoomName(chatId)
             await this.roomsManager.leaveRoom(roomName)
             this.socket.to(roomName).emit('UserWasLeftTheChat', this.ctx.user.id)
+            this.server.emit('CountOfOnlineUsersWasUpdated', await this.getOnlineUsersCount([chatId]))
         }
     }
 
@@ -159,6 +170,23 @@ class ChatsHandlers extends BaseHandler {
             .then(([id]) => Object.assign(msg, { id }))
         this.socket.to(this.makeChatRoomName(chatId)).broadcast.emit('NewChatMessage', msg)
         return msg
+    }
+
+    rpcGetOnlineUsersCount(chatIds) {
+        this.validateAuthorization()
+        return this.getOnlineUsersCount(chatIds)
+    }
+
+    getOnlineUsersCount(chatIds) {
+        const chatIdsSet = new Set(chatIds)
+        return this.roomsManager.getAllActiveRooms(/chat/).then(async roomNames =>
+            Promise.all(
+                roomNames
+                    .map(roomName => this.extractChatIdFromRoomName(roomName))
+                    .filter(chatId => chatIdsSet.has(chatId))
+                    .map(async chatId => ({ chatId, count: await this.getOnlineUsersOfChat(chatId) })),
+            ),
+        )
     }
 }
 
