@@ -77,7 +77,7 @@ class ChatsStore {
         const result = messages.map(msg => ({
             ...msg,
             author: users.find(u => u.id === msg.authorId),
-            isMy: msg.authorId === authStore.user && authStore.user.id,
+            isMy: msg.authorId === (authStore.user && authStore.user.id),
         }))
         if (result.length) {
             const lastMsg = result.pop()

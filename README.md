@@ -4,7 +4,7 @@
 
 1. Поставить себе `docker` и `docker-compose`
 2. Скопировать конфиг бекенда `mv server/example.env server/.env`
-3. Сделать `docker-compose up`
+3. Сделать `docker-compose up -d --scale api=2`. Параметр `--scale` позволяет задать кол-во запускаемых контейнеров, в данном случае мы хотим поднять 2 ноды для тестирования api в кластерном режиме.
 4. После первого запуска сделать `docker-compose exec api_1 knex migrate:latest` чтобы накатить миграции БД
 5. После этого можно подключаться к `localhost:3000` и заходить под админом `{login: 'admin', password: '123321'}`
 

@@ -8,17 +8,7 @@ services:
         volumes:
             - ./client:/usr/src/app
 
-    api_1:
-        build: ./server
-        volumes:
-            - ./server:/usr/src/app
-        depends_on:
-            - redis
-            - mysql
-        env_file: server/.env
-        command: sh -c "./scripts/wait-for.sh mysql:3306 -t 30 -- echo Mysql is ready && npm start"
-
-    api_2:
+    api:
         build: ./server
         volumes:
             - ./server:/usr/src/app
@@ -44,8 +34,7 @@ services:
         volumes:
             - ./nginx.conf:/etc/nginx/nginx.conf
         depends_on:
-            - api_1
-            - api_2
+            - api
 
     mysql:
         image: mysql:5
